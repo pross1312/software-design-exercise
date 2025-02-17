@@ -6,7 +6,6 @@ trait SelectableEnum {
     fn print_choices() -> usize;
     fn parse_choice(choice: i32) -> Option<Self> where Self: Sized;
 }
-
 enum Faculty {
     Law,
     CommercialEnglish,
@@ -243,6 +242,7 @@ fn validate_date(date: &str) -> Option<&'static str> {
 }
 
 fn read_string(prompt: &'static str, buffer: &mut String) -> Result<usize, std::io::Error> {
+    buffer.clear();
     print!("{}: ", prompt);
     io::stdout().flush().unwrap();
     let result = match io::stdin().read_line(buffer) {
@@ -263,7 +263,6 @@ fn read_string(prompt: &'static str, buffer: &mut String) -> Result<usize, std::
 fn read_enum_until_correct<T: SelectableEnum>(prompt: impl Display) -> T {
     let mut input = String::new();
     loop {
-        input.clear();
         println!("{}", prompt);
         T::print_choices();
         match read_string(&"Chọn một trong những giá trị trên", &mut input) {
@@ -288,7 +287,6 @@ fn read_enum_until_correct<T: SelectableEnum>(prompt: impl Display) -> T {
 fn read_number_until_correct(prompt: &'static str, start: i32, end: i32) -> i32 {
     let mut input = String::new();
     loop {
-        input.clear();
         match read_string(prompt, &mut input) {
             Ok(_) => match input.parse::<i32>() {
                 Ok(number) => {
@@ -307,7 +305,6 @@ fn read_number_until_correct(prompt: &'static str, start: i32, end: i32) -> i32 
 
 fn read_string_until_correct(prompt: &'static str, buffer: &mut String, validate: &dyn Fn(&str) -> Option<&'static str>) -> usize {
     loop {
-        buffer.clear();
         let n = read_string(prompt, buffer).unwrap();
         match validate(&buffer) {
             Some(err) => {
