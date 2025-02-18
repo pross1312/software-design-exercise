@@ -272,6 +272,12 @@ fn read_string(prompt: &str, buffer: &mut String) -> Result<usize, std::io::Erro
     result
 }
 
+fn read_string_new(prompt: &str) -> String {
+    let mut buffer = String::new();
+    read_string(prompt, &mut buffer).unwrap();
+    return buffer;
+}
+
 fn read_enum_until_correct<T: SelectableEnum>(prompt: &str, conn: &Connection) -> T {
     let mut input = String::new();
     loop {
@@ -329,53 +335,6 @@ fn read_string_until_correct(prompt: &'static str, buffer: &mut String, validate
     }
 }
 
-enum Operation {
-    AddNewStudent(Student),
-    DeleteStudent(String),
-    UpdateStudent(String),
-    SearchStudent(String),
-}
-
-impl Operation {
-    fn new_operation_update() -> Self {
-        let mut id = String::new();
-        read_string("Nhập mã số của sinh viên cần cập nhật", &mut id).unwrap();
-
-        Operation::UpdateStudent(id)
-    }
-
-    fn new_operation_search() -> Self {
-        let mut search = String::new();
-        read_string("Nhập mã số hoặc tên của sinh viên cần tìm", &mut search).unwrap();
-
-        Operation::SearchStudent(search)
-    }
-
-    fn new_operation_delete() -> Self {
-        let mut id = String::new();
-        read_string_until_correct("Nhập Mã số sinh viên cần xóa", &mut id, &validate_id);
-
-        Operation::DeleteStudent(id)
-    }
-
-    fn new_operation_add(conn: &Connection) -> Self {
-        let mut new_student = Student::new();
-        read_string_until_correct("Nhập mã số sinh viên", &mut new_student.id, &validate_id);
-        read_string("Nhập họ tên", &mut new_student.name).unwrap();
-        read_string_until_correct("Nhập ngày tháng năm sinh (dd/mm/yyyy)", &mut new_student.dob, &validate_date);
-        read_string_until_correct("Nhập số điện thoại", &mut new_student.phone, &validate_phone);
-        new_student.enrolled_year = read_number_until_correct("Nhập khóa (1990, 2025)", 1990, 2025);
-        new_student.gender = read_enum_until_correct("Nhập giới tính", conn);
-        new_student.faculty = read_enum_until_correct("Nhập khoa", conn);
-        new_student.program = read_enum_until_correct("Nhập chương trình", conn);
-        new_student.status = read_enum_until_correct("Nhập tình trạng", conn);
-        read_string("Nhập địa chỉ", &mut new_student.address).unwrap();
-        read_string_until_correct("Nhập Email", &mut new_student.email, &validate_email);
-
-        Operation::AddNewStudent(new_student)
-    }
-}
-
 
 enum UpdateStudentOption {
     UpdateName,
@@ -424,22 +383,85 @@ impl SelectableEnum for UpdateStudentOption {
     }
 }
 
+enum Operation {
+    AddNewStudent(Student),
+    DeleteStudent(String),
+    UpdateStudent(String),
+    SearchStudent(String),
+    AddNewFaculty(String),
+    AddNewStatus(String),
+    AddNewProgram(String),
+    UpdateFaculty(Faculty),
+    UpdateStatus(Status),
+    UpdateProgram(Program),
+    Quit,
+}
+
+impl Operation {
+    fn new_operation_add(conn: &Connection) -> Self {
+        let mut new_student = Student::new();
+        read_string_until_correct("Nhập mã số sinh viên", &mut new_student.id, &validate_id);
+        read_string("Nhập họ tên", &mut new_student.name).unwrap();
+        read_string_until_correct("Nhập ngày tháng năm sinh (dd/mm/yyyy)", &mut new_student.dob, &validate_date);
+        read_string_until_correct("Nhập số điện thoại", &mut new_student.phone, &validate_phone);
+        new_student.enrolled_year = read_number_until_correct("Nhập khóa (1990, 2025)", 1990, 2025);
+        new_student.gender = read_enum_until_correct("Nhập giới tính", conn);
+        new_student.faculty = read_enum_until_correct("Nhập khoa", conn);
+        new_student.program = read_enum_until_correct("Nhập chương trình", conn);
+        new_student.status = read_enum_until_correct("Nhập tình trạng", conn);
+        read_string("Nhập địa chỉ", &mut new_student.address).unwrap();
+        read_string_until_correct("Nhập Email", &mut new_student.email, &validate_email);
+
+        Operation::AddNewStudent(new_student)
+    }
+}
+
 impl SelectableEnum for Operation {
     fn print_choices(_conn: &Connection) -> usize {
-        println!("1. Thêm sinh viên mới");
-        println!("2. Xóa sinh viên");
-        println!("3. Cập nhật thông tin sinh viên");
-        println!("4. Tìm kiếm sinh viên");
-
-        4
+        let ops = [
+            "Thêm sinh viên mới",
+            "Xóa sinh viên",
+            "Cập nhật thông tin sinh viên",
+            "Tìm kiếm sinh viên",
+            "Thêm khoa mới",
+            "Thêm trạng thái mới",
+            "Thêm loại chương trình học mới",
+            "Đổi tên khoa",
+            "Đổi tên trạng thái",
+            "Đổi tên chương trình học",
+            "Kết thúc",
+        ];
+        for (i, op) in ops.iter().enumerate() {
+            println!("{}. {op}", i+1);
+        }
+        ops.len()
     }
     fn parse_choice(choice: i32, conn: &Connection) -> Option<Self> where Self: Sized {
         match choice {
             1 => Some(Operation::new_operation_add(conn)),
-            2 => Some(Operation::new_operation_delete()),
-            3 => Some(Operation::new_operation_update()),
-            4 => Some(Operation::new_operation_search()),
-            _ => None,
+            2 => Some(Operation::DeleteStudent(read_string_new("Nhập Mã số sinh viên cần xóa"))),
+            3 => Some(Operation::UpdateStudent(read_string_new("Nhập mã số của sinh viên cần cập nhật"))),
+            4 => Some(Operation::SearchStudent(read_string_new("Nhập mã số hoặc tên của sinh viên cần tìm"))),
+            5 => Some(Operation::AddNewFaculty(read_string_new("Nhập tên khoa mới"))),
+            6 => Some(Operation::AddNewStatus(read_string_new("Nhập tên trạng thái mới"))),
+            7 => Some(Operation::AddNewProgram(read_string_new("Nhập tên chương trình học mới"))),
+            8 => Some(Operation::UpdateFaculty({
+                let mut faculty: Faculty = read_enum_until_correct("Chọn khoa cần đổi", conn);
+                read_string("Nhập tên khoa mới", &mut faculty.name).unwrap();
+                faculty
+            })),
+            9 => Some(Operation::UpdateStatus({
+                let mut status: Status = read_enum_until_correct("Chọn trạng thái đổi", conn);
+                read_string("Nhập tên trạng thái mới", &mut status.name).unwrap();
+                status
+            })),
+            10 => Some(Operation::UpdateProgram({
+                let mut program: Program = read_enum_until_correct("Chọn chương trình học đổi", conn);
+                read_string("Nhập tên chương trình học mới", &mut program.name).unwrap();
+                program
+            })),
+            11 => Some(Operation::Quit),
+            _ => todo!(),
         }
     }
 }
@@ -512,6 +534,60 @@ fn delete_student(conn: &Connection, id: &str) -> bool {
     result == 1
 }
 
+fn add_faculty(conn: &Connection, name: &str) {
+    let result = conn.execute("INSERT INTO Faculty(name) values(?)", [name]).unwrap();
+    if result != 1 {
+        panic!("Could not add new faculty");
+    } else {
+        println!("Thêm khoa mới '{name}' thành công");
+    }
+}
+
+fn add_status(conn: &Connection, name: &str) {
+    let result = conn.execute("INSERT INTO Status(name) values(?)", [name]).unwrap();
+    if result != 1 {
+        panic!("Could not add new status");
+    } else {
+        println!("Thêm trạng thái mới '{name}' thành công");
+    }
+}
+
+fn add_program(conn: &Connection, name: &str) {
+    let result = conn.execute("INSERT INTO Program(name) values(?)", [name]).unwrap();
+    if result != 1 {
+        panic!("Could not add new program");
+    } else {
+        println!("Thêm chương trình học mới '{name}' thành công");
+    }
+}
+
+fn update_faculty(conn: &Connection, faculty: &Faculty) {
+    let result = conn.execute("UPDATE Faculty SET name = ? WHERE id = ?", rusqlite::params![faculty.name, faculty.id]).unwrap();
+    if result != 1 {
+        panic!("Could not update faculty");
+    } else {
+        println!("Đổi tên khoa thành công");
+    }
+}
+
+fn update_status(conn: &Connection, status: &Status) {
+    let result = conn.execute("UPDATE Status SET name = ? WHERE id = ?", rusqlite::params![status.name, status.id]).unwrap();
+    if result != 1 {
+        panic!("Could not update status");
+    } else {
+        println!("Đổi tên trạng thái thành công");
+    }
+}
+
+fn update_program(conn: &Connection, program: &Program) {
+    let result = conn.execute("UPDATE Program SET name = ? WHERE id = ?", rusqlite::params![program.name, program.id]).unwrap();
+    if result != 1 {
+        panic!("Could not update program");
+    } else {
+        println!("Đổi tên chương trình học thành công");
+    }
+}
+
 fn main() {
     let conn = Connection::open("data.db").unwrap();
     conn.execute_batch(&fs::read_to_string("migrate.sql").unwrap()).unwrap();
@@ -552,6 +628,25 @@ fn main() {
                     println!("Không thể tìm thấy sinh viên với mã số {}", id);
                 }
             },
+            Operation::AddNewFaculty(name) => {
+                add_faculty(&conn, &name);
+            },
+            Operation::AddNewStatus(name) => {
+                add_status(&conn, &name);
+            },
+            Operation::AddNewProgram(name) => {
+                add_program(&conn, &name);
+            },
+            Operation::UpdateFaculty(faculty) => {
+                update_faculty(&conn, &faculty);
+            },
+            Operation::UpdateStatus(status) => {
+                update_status(&conn, &status);
+            },
+            Operation::UpdateProgram(program) => {
+                update_program(&conn, &program);
+            },
+            Operation::Quit => break,
         }
         println!();
     }
