@@ -1,49 +1,22 @@
 #![allow(dead_code)]
 use std::io;
-use std::fmt::Display;
+use rusqlite::{Connection, Result};
 use std::io::Write;
+use std::fs;
+
 trait SelectableEnum {
-    fn print_choices() -> usize;
-    fn parse_choice(choice: i32) -> Option<Self> where Self: Sized;
-}
-enum Faculty {
-    Law,
-    CommercialEnglish,
-    Japanese,
-    France,
-}
-impl Faculty {
-    fn value(&self) -> &'static str {
-        match *self {
-            Faculty::Law => "Khoa Luật",
-            Faculty::CommercialEnglish => "Khoa Tiếng Anh thương mại",
-            Faculty::Japanese => "Khoa Tiếng Nhật",
-            Faculty::France => "Khoa Tiếng Pháp",
-        }
-    }
-}
-impl SelectableEnum for Faculty {
-    fn print_choices() -> usize {
-        println!("1. Khoa Luật");
-        println!("2. Khoa Tiếng Anh thương mại");
-        println!("3. Khoa Tiếng Nhật");
-        println!("4. Khoa Tiếng Pháp");
-
-        4
-    }
-    fn parse_choice(choice: i32) -> Option<Self> {
-        match choice {
-            1 => Some(Faculty::Law),
-            2 => Some(Faculty::CommercialEnglish),
-            3 => Some(Faculty::Japanese),
-            4 => Some(Faculty::France),
-            _ => None,
-        }
-    }
+    fn print_choices(conn: &Connection) -> usize;
+    fn parse_choice(choice: i32, conn: &Connection) -> Option<Self> where Self: Sized;
 }
 
+#[derive(Clone)]
 enum Gender {
-    Male, Female
+    Male = 1, Female
+}
+impl rusqlite::ToSql for Gender {
+    fn to_sql(&self) -> Result<rusqlite::types::ToSqlOutput<'_>, rusqlite::Error> {
+        Ok(rusqlite::types::ToSqlOutput::from(self.clone() as i32))
+    }
 }
 impl Gender {
     fn value(&self) -> &'static str {
@@ -54,81 +27,16 @@ impl Gender {
     }
 }
 impl SelectableEnum for Gender {
-    fn print_choices() -> usize {
+    fn print_choices(_conn: &Connection) -> usize {
         println!("1. Nam");
         println!("2. Nữ");
 
         2
     }
-    fn parse_choice(choice: i32) -> Option<Self> {
+    fn parse_choice(choice: i32, _conn: &Connection) -> Option<Self> {
         match choice {
             1 => Some(Gender::Male),
             2 => Some(Gender::Female),
-            _ => None,
-        }
-    }
-}
-
-enum Program {
-    Normal,
-    HighQuality,
-}
-impl Program {
-    fn value(&self) -> &'static str {
-        match *self {
-            Program::Normal => "Thường",
-            Program::HighQuality => "Chất lượng cao",
-        }
-    }
-}
-impl SelectableEnum for Program {
-    fn print_choices() -> usize {
-        println!("1. Thường");
-        println!("2. Chất lượng cao");
-
-        2
-    }
-    fn parse_choice(choice: i32) -> Option<Self> {
-        match choice {
-            1 => Some(Program::Normal),
-            2 => Some(Program::HighQuality),
-            _ => None,
-        }
-    }
-}
-
-
-enum Status {
-    Graduated,
-    Suspended,
-    DroppedOut,
-    OnGoing,
-}
-impl Status {
-    fn value(&self) -> &'static str {
-        match *self {
-            Status::Graduated => "Đã tốt nghiệp",
-            Status::Suspended => "Tạm dừng học",
-            Status::DroppedOut => "Đã thôi học",
-            Status::OnGoing => "Đang học",
-        }
-    }
-}
-impl SelectableEnum for Status {
-    fn print_choices() -> usize {
-        println!("1. Đã tốt nghiệp");
-        println!("2. Tạm dừng học");
-        println!("3. Đã thôi học");
-        println!("4. Đang học");
-
-        4
-    }
-    fn parse_choice(choice: i32) -> Option<Self> {
-        match choice {
-            1 => Some(Status::Graduated),
-            2 => Some(Status::Suspended),
-            3 => Some(Status::DroppedOut),
-            4 => Some(Status::OnGoing),
             _ => None,
         }
     }
@@ -149,7 +57,6 @@ struct Student {
 }
 
 impl Student {
-
     fn new() -> Self {
         Self {
             id: String::new(),
@@ -158,11 +65,11 @@ impl Student {
             phone: String::new(),
             address: String::new(),
             email: String::new(),
-            status: Status::OnGoing,
+            status: Status { id: 0, name: String::new() },
             gender: Gender::Male,
-            faculty: Faculty::Law,
+            faculty: Faculty { id: 0, name: String::new() },
             enrolled_year: 2025,
-            program: Program::Normal,
+            program: Program { id: 0, name: String::new() },
         }
     }
 
@@ -171,14 +78,119 @@ impl Student {
         println!("Họ tên: {}", self.name);
         println!("Ngày tháng năm sinh: {}", self.dob);
         println!("Giới tính: {}", self.gender.value());
-        println!("Khoa: {}", self.faculty.value());
+        println!("Khoa: {}", self.faculty.name);
         println!("Khóa: {}", self.enrolled_year);
-        println!("Chương trình: {}", self.program.value());
+        println!("Chương trình: {}", self.program.name);
         println!("Địa chỉ: {}", self.address);
         println!("Email: {}", self.email);
-        println!("Tình trạng sinh viên: {}", self.status.value());
+        println!("Tình trạng sinh viên: {}", self.status.name);
     }
 }
+
+struct Faculty {
+    id: i32,
+    name: String,
+}
+
+impl SelectableEnum for Faculty {
+    fn print_choices(conn: &Connection) -> usize {
+        let mut stmt = conn.prepare("SELECT id, name FROM Faculty").unwrap();
+        let iter = stmt.query_map([], |row| {
+            Ok(Faculty {
+                id: row.get(0)?,
+                name: row.get(1)?
+            })
+        }).unwrap();
+        let mut count = 0;
+        for faculty in iter {
+            let faculty = faculty.unwrap();
+            println!("{}. {}", faculty.id, faculty.name);
+            count += 1;
+        }
+        count
+    }
+    fn parse_choice(choice: i32, conn: &Connection) -> Option<Self> {
+        if let Ok(faculty) = conn.query_row(
+            "SELECT id, name FROM Faculty WHERE id = ?",
+            [choice],
+            |row| Ok(Faculty {id: row.get(0)?, name: row.get(1)?}) ) {
+            Some(faculty)
+        } else {
+            None
+        }
+    }
+}
+
+
+struct Status {
+    id: i32,
+    name: String,
+}
+
+impl SelectableEnum for Status {
+    fn print_choices(conn: &Connection) -> usize {
+        let mut stmt = conn.prepare("SELECT id, name FROM Status").unwrap();
+        let iter = stmt.query_map([], |row| {
+            Ok(Status {
+                id: row.get(0)?,
+                name: row.get(1)?
+            })
+        }).unwrap();
+        let mut count = 0;
+        for status in iter {
+            let status = status.unwrap();
+            println!("{}. {}", status.id, status.name);
+            count += 1;
+        }
+        count
+    }
+    fn parse_choice(choice: i32, conn: &Connection) -> Option<Self> {
+        if let Ok(status) = conn.query_row(
+            "SELECT id, name FROM Status WHERE id = ?",
+            [choice],
+            |row| Ok(Status {id: row.get(0)?, name: row.get(1)?}) ) {
+            Some(status)
+        } else {
+            None
+        }
+    }
+}
+
+struct Program {
+    id: i32,
+    name: String,
+}
+
+impl SelectableEnum for Program {
+    fn print_choices(conn: &Connection) -> usize {
+        let mut stmt = conn.prepare("SELECT id, name FROM Program").unwrap();
+        let iter = stmt.query_map([], |row| {
+            Ok(Program {
+                id: row.get(0)?,
+                name: row.get(1)?
+            })
+        }).unwrap();
+        let mut count = 0;
+        for program in iter {
+            let program = program.unwrap();
+            println!("{}. {}", program.id, program.name);
+            count += 1;
+        }
+        count
+    }
+    fn parse_choice(choice: i32, conn: &Connection) -> Option<Self> {
+        if let Ok(program) = conn.query_row(
+            "SELECT id, name FROM Program WHERE id = ?",
+            [choice],
+            |row| Ok(Program {id: row.get(0)?, name: row.get(1)?}) ) {
+            Some(program)
+        } else {
+            None
+        }
+    }
+}
+
+
 fn validate_id(_id: &str) -> Option<&'static str> {
     None
 }
@@ -241,7 +253,7 @@ fn validate_date(date: &str) -> Option<&'static str> {
     }
 }
 
-fn read_string(prompt: &'static str, buffer: &mut String) -> Result<usize, std::io::Error> {
+fn read_string(prompt: &str, buffer: &mut String) -> Result<usize, std::io::Error> {
     buffer.clear();
     print!("{}: ", prompt);
     io::stdout().flush().unwrap();
@@ -260,15 +272,15 @@ fn read_string(prompt: &'static str, buffer: &mut String) -> Result<usize, std::
     result
 }
 
-fn read_enum_until_correct<T: SelectableEnum>(prompt: impl Display) -> T {
+fn read_enum_until_correct<T: SelectableEnum>(prompt: &str, conn: &Connection) -> T {
     let mut input = String::new();
     loop {
         println!("{}", prompt);
-        T::print_choices();
+        T::print_choices(conn);
         match read_string(&"Chọn một trong những giá trị trên", &mut input) {
             Ok(_) => match input.parse::<i32>() {
                 Ok(choice) => {
-                    if let Some(value) = T::parse_choice(choice) {
+                    if let Some(value) = T::parse_choice(choice, conn) {
                         return value;
                     } else {
                         println!("Lụa chọn '{}' không hợp lệ, vui lòng chọn lại", input)
@@ -284,7 +296,7 @@ fn read_enum_until_correct<T: SelectableEnum>(prompt: impl Display) -> T {
     }
 }
 
-fn read_number_until_correct(prompt: &'static str, start: i32, end: i32) -> i32 {
+fn read_number_until_correct(prompt: &str, start: i32, end: i32) -> i32 {
     let mut input = String::new();
     loop {
         match read_string(prompt, &mut input) {
@@ -303,7 +315,8 @@ fn read_number_until_correct(prompt: &'static str, start: i32, end: i32) -> i32 
     }
 }
 
-fn read_string_until_correct(prompt: &'static str, buffer: &mut String, validate: &dyn Fn(&str) -> Option<&'static str>) -> usize {
+type ValidateFn = dyn Fn(&str) -> Option<&'static str>;
+fn read_string_until_correct(prompt: &'static str, buffer: &mut String, validate: &ValidateFn) -> usize {
     loop {
         let n = read_string(prompt, buffer).unwrap();
         match validate(&buffer) {
@@ -345,17 +358,17 @@ impl Operation {
         Operation::DeleteStudent(id)
     }
 
-    fn new_operation_add() -> Self {
+    fn new_operation_add(conn: &Connection) -> Self {
         let mut new_student = Student::new();
         read_string_until_correct("Nhập mã số sinh viên", &mut new_student.id, &validate_id);
         read_string("Nhập họ tên", &mut new_student.name).unwrap();
         read_string_until_correct("Nhập ngày tháng năm sinh (dd/mm/yyyy)", &mut new_student.dob, &validate_date);
         read_string_until_correct("Nhập số điện thoại", &mut new_student.phone, &validate_phone);
         new_student.enrolled_year = read_number_until_correct("Nhập khóa (1990, 2025)", 1990, 2025);
-        new_student.gender = read_enum_until_correct("Nhập giới tính");
-        new_student.faculty = read_enum_until_correct("Nhập khoa");
-        new_student.program = read_enum_until_correct("Nhập chương trình");
-        new_student.status = read_enum_until_correct("Nhập tình trạng");
+        new_student.gender = read_enum_until_correct("Nhập giới tính", conn);
+        new_student.faculty = read_enum_until_correct("Nhập khoa", conn);
+        new_student.program = read_enum_until_correct("Nhập chương trình", conn);
+        new_student.status = read_enum_until_correct("Nhập tình trạng", conn);
         read_string("Nhập địa chỉ", &mut new_student.address).unwrap();
         read_string_until_correct("Nhập Email", &mut new_student.email, &validate_email);
 
@@ -379,7 +392,7 @@ enum UpdateStudentOption {
 }
 
 impl SelectableEnum for UpdateStudentOption {
-    fn print_choices() -> usize {
+    fn print_choices(_conn: &Connection) -> usize {
         println!("1. Cập nhật tên");
         println!("2. Cập nhật ngày sinh");
         println!("3. Cập nhật số điện thoại");
@@ -393,7 +406,7 @@ impl SelectableEnum for UpdateStudentOption {
         println!("11.Hoàn thành");
         11
     }
-    fn parse_choice(choice: i32) -> Option<Self> where Self: Sized {
+    fn parse_choice(choice: i32, _conn: &Connection) -> Option<Self> where Self: Sized {
         match choice {
             1 => Some(UpdateStudentOption::UpdateName),
             2 => Some(UpdateStudentOption::UpdateDob),
@@ -411,27 +424,8 @@ impl SelectableEnum for UpdateStudentOption {
     }
 }
 
-fn update_student(student: &mut Student) {
-    loop {
-        let option = read_enum_until_correct::<UpdateStudentOption>("");
-        match option {
-            UpdateStudentOption::UpdateName => { read_string("Nhập tên mới", &mut student.name).unwrap(); },
-            UpdateStudentOption::UpdateDob => { read_string_until_correct("Nhập ngày sinh mới (dd/mm/yyyy)", &mut student.dob, &validate_date); },
-            UpdateStudentOption::UpdatePhone => { read_string_until_correct("Nhập số điện thoại mới", &mut student.phone, &validate_phone); },
-            UpdateStudentOption::UpdateAddress => { read_string("Nhập địa chỉ mới", &mut student.address).unwrap(); },
-            UpdateStudentOption::UpdateEmail => { read_string_until_correct("Nhập email mới", &mut student.email, &validate_email); },
-            UpdateStudentOption::UpdateStatus => { student.status = read_enum_until_correct("Nhập trạng thái mới"); },
-            UpdateStudentOption::UpdateGender => { student.gender = read_enum_until_correct("Nhập giới tính mới"); },
-            UpdateStudentOption::UpdateFaculty => { student.faculty = read_enum_until_correct("Nhập khoa mới"); },
-            UpdateStudentOption::UpdateEnrolledYear => { student.enrolled_year = read_number_until_correct("Nhập khóa mới (1990, 2025)", 1990, 2025); },
-            UpdateStudentOption::UpdateProgram => { student.program = read_enum_until_correct("Nhập khoa mới"); },
-            UpdateStudentOption::Done => { break; },
-        }
-    }
-}
-
 impl SelectableEnum for Operation {
-    fn print_choices() -> usize {
+    fn print_choices(_conn: &Connection) -> usize {
         println!("1. Thêm sinh viên mới");
         println!("2. Xóa sinh viên");
         println!("3. Cập nhật thông tin sinh viên");
@@ -439,56 +433,126 @@ impl SelectableEnum for Operation {
 
         4
     }
-    fn parse_choice(choice: i32) -> Option<Self> where Self: Sized {
+    fn parse_choice(choice: i32, conn: &Connection) -> Option<Self> where Self: Sized {
         match choice {
-            1 => Some(Operation::new_operation_add()),
+            1 => Some(Operation::new_operation_add(conn)),
             2 => Some(Operation::new_operation_delete()),
             3 => Some(Operation::new_operation_update()),
             4 => Some(Operation::new_operation_search()),
-            _ => todo!(),
+            _ => None,
         }
     }
 }
-fn main() {
-    "123".parse::<i32>().unwrap();
-    let mut students: Vec<Student> = Vec::new();
+
+fn update_student_fields(student: &mut Student, conn: &Connection) {
     loop {
-        match read_enum_until_correct("Chọn hành động") {
+        let option = read_enum_until_correct::<UpdateStudentOption>("", conn);
+        match option {
+            UpdateStudentOption::UpdateName => { read_string("Nhập tên mới", &mut student.name).unwrap(); },
+            UpdateStudentOption::UpdateDob => { read_string_until_correct("Nhập ngày sinh mới (dd/mm/yyyy)", &mut student.dob, &validate_date); },
+            UpdateStudentOption::UpdatePhone => { read_string_until_correct("Nhập số điện thoại mới", &mut student.phone, &validate_phone); },
+            UpdateStudentOption::UpdateAddress => { read_string("Nhập địa chỉ mới", &mut student.address).unwrap(); },
+            UpdateStudentOption::UpdateEmail => { read_string_until_correct("Nhập email mới", &mut student.email, &validate_email); },
+            UpdateStudentOption::UpdateStatus => { student.status = read_enum_until_correct("Nhập trạng thái mới", conn); },
+            UpdateStudentOption::UpdateGender => { student.gender = read_enum_until_correct("Nhập giới tính mới", conn); },
+            UpdateStudentOption::UpdateFaculty => { student.faculty = read_enum_until_correct("Nhập khoa mới", conn); },
+            UpdateStudentOption::UpdateEnrolledYear => { student.enrolled_year = read_number_until_correct("Nhập khóa mới (1990, 2025)", 1990, 2025); },
+            UpdateStudentOption::UpdateProgram => { student.program = read_enum_until_correct("Nhập khoa mới", conn); },
+            UpdateStudentOption::Done => { break; },
+        }
+    }
+}
+
+fn add_student(conn: &Connection, new_student: &Student) {
+    let result = conn.execute("INSERT INTO Student(id, name, dob, phone, address, email, status, gender, faculty, enrolled_year, program) 
+                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rusqlite::params![
+                 new_student.id, new_student.name, new_student.dob, new_student.phone, new_student.address, new_student.email, new_student.status.id, new_student.gender, new_student.faculty.id, new_student.enrolled_year, new_student.program.id
+                 ]).unwrap();
+    if result != 1 {
+        panic!("Could not insert new student");
+    } else {
+        println!("Đã thêm 1 sinh viên");
+        new_student.print();
+        println!();
+    }
+}
+
+fn search_student(conn: &Connection, id_or_name: &str) -> Option<Student> {
+    if let Ok(student) = conn.query_row(
+        "SELECT id, name, dob, phone, address, email, status, gender, faculty, enrolled_year, program FROM Student WHERE id = ? OR name LIKE ?",
+        [id_or_name, id_or_name],
+        |row| Ok(Student {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            dob: row.get(2)?,
+            phone: row.get(3)?,
+            address: row.get(4)?,
+            email: row.get(5)?,
+            status: Status::parse_choice(row.get(6)?, conn).unwrap(),
+            gender: Gender::parse_choice(row.get(7)?, conn).unwrap(),
+            faculty: Faculty::parse_choice(row.get(8)?, conn).unwrap(),
+            enrolled_year: row.get(9)?,
+            program: Program::parse_choice(row.get(10)?, conn).unwrap(),
+        }) ) {
+        Some(student)
+    } else {
+        None
+    }
+}
+
+fn update_student(conn: &Connection, _id: String, student: &Student) {
+    conn.execute("UPDATE Student SET name = ?, dob = ?, phone = ?, address = ?, email = ?, status = ?, gender = ?, faculty = ?, enrolled_year = ?, program = ? WHERE id = ?", rusqlite::params![
+                 student.name, student.dob, student.phone, student.address, student.email, student.status.id, student.gender, student.faculty.id, student.enrolled_year, student.program.id,
+                 student.id
+                 ]).unwrap();
+}
+
+fn delete_student(conn: &Connection, id: &str) -> bool {
+    let result = conn.execute("DELETE FROM Student WHERE id = ?", [id]).unwrap();
+    result == 1
+}
+
+fn main() {
+    let conn = Connection::open("data.db").unwrap();
+    conn.execute_batch(&fs::read_to_string("migrate.sql").unwrap()).unwrap();
+
+    loop {
+        match read_enum_until_correct("Chọn hành động", &conn) {
             Operation::AddNewStudent(new_student) => {
-                println!("Đã thêm 1 sinh viên");
-                new_student.print();
-                println!();
-                students.push(new_student);
+                if let Some(student) = search_student(&conn, &new_student.id) {
+                    println!("Học sinh với mã số {} đã tồn tại, không thể thêm học sinh mới vào", student.id);
+                } else {
+                    add_student(&conn, &new_student);
+                }
             },
             Operation::UpdateStudent(id) => {
-                if let Some(index) = students.iter().position(|student| student.id == id) {
+                if let Some(mut student) = search_student(&conn, &id) {
                     println!("Cập nhập thông tin mới cho sinh viên");
-                    students[index].print();
-                    update_student(&mut students[index]);
+                    update_student_fields(&mut student, &conn);
                     println!("Thông tin của sinh viên sau khi sửa");
-                    students[index].print();
-                    println!();
+                    student.print();
+                    update_student(&conn, id, &student);
                 } else {
                     println!("Không thể tìm thấy sinh viên có mã số {}", id);
                 }
             },
             Operation::SearchStudent(search) => {
-                if let Some(index) = students.iter().position(|student| student.id == search || student.name == search) {
+                if let Some(student) = search_student(&conn, &search) {
                     println!("Sinh viên cần tìm là");
-                    students[index].print();
+                    student.print();
                     println!();
                 } else {
                     println!("Không thể tìm thấy sinh viên có mã số hoặc tên {}", search);
                 }
             },
             Operation::DeleteStudent(id) => {
-                if let Some(index) = students.iter().position(|student| student.id == id) {
-                    students.swap_remove(index);
+                if delete_student(&conn, &id) {
                     println!("Xóa thành công sinh viên với mã số {}", id);
                 } else {
-                    println!("Không thể tìm thấy sinh viên với mã số {}",id);
+                    println!("Không thể tìm thấy sinh viên với mã số {}", id);
                 }
             },
         }
+        println!();
     }
 }
