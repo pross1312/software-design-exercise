@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+quick-xml = { version = "0.37.2", features = ["serialize"] }
 rusqlite = { version = "0.33.0", features = ["bundled"] }
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = { version = "1.0.138" }
 
 [[bin]]
 name = "excercise"

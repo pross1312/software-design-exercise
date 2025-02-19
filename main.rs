@@ -1,15 +1,16 @@
 #![allow(dead_code)]
 use std::io;
-use rusqlite::{Connection, Result};
-use std::io::Write;
-use std::fs;
+use rusqlite::{Connection};
+use std::io::{BufWriter, BufReader, Write};
+use std::fs::{self, File};
+use std::path::Path;
 
 trait SelectableEnum {
     fn print_choices(conn: &Connection) -> usize;
     fn parse_choice(choice: i32, conn: &Connection) -> Option<Self> where Self: Sized;
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 enum Gender {
     Male = 1, Female
 }
@@ -42,6 +43,7 @@ impl SelectableEnum for Gender {
     }
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 struct Student {
     id: String,
     name: String,
@@ -87,6 +89,7 @@ impl Student {
     }
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 struct Faculty {
     id: i32,
     name: String,
@@ -122,6 +125,7 @@ impl SelectableEnum for Faculty {
 }
 
 
+#[derive(serde::Serialize, serde::Deserialize)]
 struct Status {
     id: i32,
     name: String,
@@ -156,6 +160,7 @@ impl SelectableEnum for Status {
     }
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 struct Program {
     id: i32,
     name: String,
@@ -383,6 +388,39 @@ impl SelectableEnum for UpdateStudentOption {
     }
 }
 
+enum FileFormat {
+    Json,
+    Xml,
+}
+impl FileFormat {
+    fn extension(&self) -> &'static str {
+        match *self {
+            FileFormat::Json => "json",
+            FileFormat::Xml => "xml",
+        }
+    }
+}
+
+impl SelectableEnum for FileFormat {
+    fn print_choices(_conn: &Connection) -> usize {
+        let ops = [
+            "JSON Format",
+            "XML Format",
+        ];
+        for (i, op) in ops.iter().enumerate() {
+            println!("{}. {op}", i+1);
+        }
+        ops.len()
+    }
+    fn parse_choice(choice: i32, _conn: &Connection) -> Option<Self> where Self: Sized {
+        match choice {
+            1 => Some(FileFormat::Json),
+            2 => Some(FileFormat::Xml),
+            _ => None,
+        }
+    }
+}
+
 enum Operation {
     AddNewStudent(Student),
     DeleteStudent(String),
@@ -394,6 +432,10 @@ enum Operation {
     UpdateFaculty(Faculty),
     UpdateStatus(Status),
     UpdateProgram(Program),
+    SearchByFaculty(Faculty),
+    SearchByFacultyAndName(Faculty, String),
+    Export(FileFormat, String),
+    Import(FileFormat, String),
     Quit,
 }
 
@@ -429,6 +471,10 @@ impl SelectableEnum for Operation {
             "Đổi tên khoa",
             "Đổi tên trạng thái",
             "Đổi tên chương trình học",
+            "Tìm theo khoa",
+            "Tìm theo khoa và tên sinh viên",
+            "Export",
+            "Import",
             "Kết thúc",
         ];
         for (i, op) in ops.iter().enumerate() {
@@ -460,7 +506,11 @@ impl SelectableEnum for Operation {
                 read_string("Nhập tên chương trình học mới", &mut program.name).unwrap();
                 program
             })),
-            11 => Some(Operation::Quit),
+            11 => Some(Operation::SearchByFaculty(read_enum_until_correct::<Faculty>("Chọn khoa muốn tìm", conn))),
+            12 => Some(Operation::SearchByFacultyAndName(read_enum_until_correct::<Faculty>("Chọn khoa muốn tìm", conn), read_string_new("Nhập tên sinh viên cần tìm"))),
+            13 => Some(Operation::Export(read_enum_until_correct("Chọn file format", conn), read_string_new("Nhập tên file"))),
+            14 => Some(Operation::Import(read_enum_until_correct("Chọn file format", conn), read_string_new("Nhập tên file"))),
+            15 => Some(Operation::Quit),
             _ => todo!(),
         }
     }
@@ -501,7 +551,7 @@ fn add_student(conn: &Connection, new_student: &Student) {
 
 fn search_student(conn: &Connection, id_or_name: &str) -> Option<Student> {
     if let Ok(student) = conn.query_row(
-        "SELECT id, name, dob, phone, address, email, status, gender, faculty, enrolled_year, program FROM Student WHERE id = ? OR name LIKE ?",
+        "SELECT id, name, dob, phone, address, email, status, gender, faculty, enrolled_year, program FROM Student WHERE LOWER(id) = LOWER(?) OR LOWER(name) LIKE LOWER(?)",
         [id_or_name, id_or_name],
         |row| Ok(Student {
             id: row.get(0)?,
@@ -588,9 +638,165 @@ fn update_program(conn: &Connection, program: &Program) {
     }
 }
 
+fn search_by_faculty(conn: &Connection, Faculty{id, name}: &Faculty, student_name: Option<&str>) {
+    let (mut stmt, args) = if None == student_name {
+        (conn.prepare("SELECT * FROM Student WHERE faculty = ?").unwrap(), rusqlite::params![id])
+    } else {
+        (conn.prepare("SELECT * FROM Student WHERE Faculty = ? AND LOWER(name) LIKE LOWER(?)").unwrap(), rusqlite::params![id, student_name.unwrap()])
+    };
+    let iter = stmt.query_map(args, |row| {
+        Ok(Student {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            dob: row.get(2)?,
+            phone: row.get(3)?,
+            address: row.get(4)?,
+            email: row.get(5)?,
+            status: Status::parse_choice(row.get(6)?, conn).unwrap(),
+            gender: Gender::parse_choice(row.get(7)?, conn).unwrap(),
+            faculty: Faculty::parse_choice(row.get(8)?, conn).unwrap(),
+            enrolled_year: row.get(9)?,
+            program: Program::parse_choice(row.get(10)?, conn).unwrap(),
+        })
+    }).unwrap();
+    if student_name == None {
+        println!("Các học sinh trong {name} là");
+    } else {
+        println!("Các học sinh trong {name} có tên '{}' là", student_name.unwrap());
+    }
+    for student in iter {
+        student.unwrap().print();
+        println!();
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct DataFormat {
+    statuses: Vec<Status>,
+    programs: Vec<Program>,
+    faculties: Vec<Faculty>,
+    students: Vec<Student>,
+}
+
+fn insert_multiple_faculties(conn: &Connection, faculties: &[Faculty]) {
+    let mut stmt = conn.prepare("INSERT INTO Faculty(id, name) VALUES(?, ?)").unwrap();
+    for faculty in faculties {
+        if let Err(_) = stmt.insert(rusqlite::params![faculty.id, faculty.name]) {
+            println!("Không thể thêm '{}' và database", faculty.name);
+        }
+    }
+}
+fn insert_multiple_statuses(conn: &Connection, statuses: &[Status]) {
+    let mut stmt = conn.prepare("INSERT INTO Status(id, name) VALUES(?, ?)").unwrap();
+    for status in statuses {
+        if let Err(_) = stmt.insert(rusqlite::params![status.id, status.name]) {
+            println!("Không thể thêm trạng thái '{}' và database", status.name);
+        }
+    }
+}
+fn insert_multiple_programs(conn: &Connection, programs: &[Program]) {
+    let mut stmt = conn.prepare("INSERT INTO Program(id, name) VALUES(?, ?)").unwrap();
+    for program in programs {
+        if let Err(_) = stmt.insert(rusqlite::params![program.id, program.name]) {
+            println!("Không thể thêm chương trình '{}' và database", program.name);
+        }
+    }
+}
+fn insert_multiple_students(conn: &Connection, students: &[Student]) {
+    let mut stmt = conn.prepare("INSERT INTO Student(id, name, dob, phone, address, email, status, gender, faculty, enrolled_year, program) 
+                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").unwrap();
+    for student in students {
+        if let Err(_) = stmt.insert(rusqlite::params![student.id, student.name, student.dob, student.phone, student.address, student.email, student.status.id, student.gender, student.faculty.id, student.enrolled_year, student.program.id]) {
+            println!("Không thể thêm học sinh với mã số {} vào database", student.id);
+        }
+    }
+}
+
+fn export_data(conn: &Connection, file_name: &str, format: FileFormat) {
+    let path = Path::new(&file_name).with_extension(format.extension());
+    let all_faculties = conn.prepare("SELECT * FROM Faculty").unwrap()
+        .query_map([], |row| {
+            Ok(Faculty {
+                id: row.get(0)?,
+                name: row.get(1)?,
+            })
+        }).unwrap().map(|result| result.unwrap()).collect::<Vec<Faculty>>();
+    let all_statuses = conn.prepare("SELECT * FROM Status").unwrap()
+        .query_map([], |row| {
+            Ok(Status {
+                id: row.get(0)?,
+                name: row.get(1)?,
+            })
+        }).unwrap().map(|result| result.unwrap()).collect::<Vec<Status>>();
+    let all_programs = conn.prepare("SELECT * FROM Program").unwrap()
+        .query_map([], |row| {
+            Ok(Program {
+                id: row.get(0)?,
+                name: row.get(1)?,
+            })
+        }).unwrap().map(|result| result.unwrap()).collect::<Vec<Program>>();
+    let all_students = conn.prepare("SELECT * FROM Student").unwrap()
+        .query_map([], |row| {
+            Ok(Student {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                dob: row.get(2)?,
+                phone: row.get(3)?,
+                address: row.get(4)?,
+                email: row.get(5)?,
+                status: Status::parse_choice(row.get(6)?, conn).unwrap(),
+                gender: Gender::parse_choice(row.get(7)?, conn).unwrap(),
+                faculty: Faculty::parse_choice(row.get(8)?, conn).unwrap(),
+                enrolled_year: row.get(9)?,
+                program: Program::parse_choice(row.get(10)?, conn).unwrap(),
+            })
+        }).unwrap().map(|result| result.unwrap()).collect::<Vec<Student>>();
+
+    let mut writer = BufWriter::new(File::create(&path).unwrap());
+    match format {
+        FileFormat::Json => {
+            serde_json::to_writer(writer, &DataFormat {
+                statuses: all_statuses,
+                programs: all_programs,
+                faculties: all_faculties,
+                students: all_students,
+            }).unwrap();
+        },
+        FileFormat::Xml => {
+            writer.write_all(
+                quick_xml::se::to_string(&DataFormat {
+                    statuses: all_statuses,
+                    programs: all_programs,
+                    faculties: all_faculties,
+                    students: all_students,
+                }).unwrap().as_bytes()
+            ).unwrap();
+        },
+    };
+}
+
+fn import_data(conn: &Connection, file_name: &str, format: FileFormat) {
+    let path = Path::new(file_name).with_extension(format.extension());
+    if let Ok(reader) = File::open(&path).and_then(|file| Ok(BufReader::new(file))) {
+        let data: DataFormat = match format {
+            FileFormat::Json => serde_json::from_reader(reader).unwrap(),
+            FileFormat::Xml => quick_xml::de::from_reader(reader).unwrap(),
+        };
+        insert_multiple_students(conn, &data.students);
+        insert_multiple_faculties(conn, &data.faculties);
+        insert_multiple_statuses(conn, &data.statuses);
+        insert_multiple_programs(conn, &data.programs);
+    } else {
+        println!("{file_name} does not exist");
+    }
+}
+
+const DB_PATH: &str = "data.db";
+const MIGRATION_SCRIPT: &str = "migrate.sql";
+
 fn main() {
-    let conn = Connection::open("data.db").unwrap();
-    conn.execute_batch(&fs::read_to_string("migrate.sql").unwrap()).unwrap();
+    let conn = Connection::open(DB_PATH).unwrap();
+    conn.execute_batch(&fs::read_to_string(MIGRATION_SCRIPT).unwrap()).unwrap();
 
     loop {
         match read_enum_until_correct("Chọn hành động", &conn) {
@@ -645,6 +851,18 @@ fn main() {
             },
             Operation::UpdateProgram(program) => {
                 update_program(&conn, &program);
+            },
+            Operation::SearchByFaculty(faculty) => {
+                search_by_faculty(&conn, &faculty, None);
+            },
+            Operation::SearchByFacultyAndName(faculty, name) => {
+                search_by_faculty(&conn, &faculty, Some(&name));
+            },
+            Operation::Export(format, file_name) => {
+                export_data(&conn, &file_name, format);
+            },
+            Operation::Import(format, file_name) => {
+                import_data(&conn, &file_name, format);
             },
             Operation::Quit => break,
         }
