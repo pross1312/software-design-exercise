@@ -5,6 +5,7 @@ main
 *.db
 *.json
 *.xml
+*.log
 
 
 # Added by cargo

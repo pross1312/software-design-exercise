@@ -33,13 +33,18 @@ cargo run              # to start program
 #### Some demos
 ![Menu](./screenshots/ex02/menu.png)
 *Menu*
+
 ![New Faculty](./screenshots/ex02/new_faculty.png)
 *New Faculty*
+
 ![Search by Faculty](./screenshots/ex02/search_by_faculty.png)
 *Searcg by Faculty*
+
 ![Export](./screenshots/ex02/export_xml1.png)
 *Export*
+
 ![Import](./screenshots/ex02/import_xml1.png)
 *Import*
+
 ![Import](./screenshots/ex02/logging.png)
 *Loggin*
