@@ -1,5 +1,5 @@
 [package]
-name = "excercise"
+name = "exercise"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,5 +11,5 @@ serde = { version = "1.0.217", features = ["derive"] }
 serde_json = { version = "1.0.138" }
 
 [[bin]]
-name = "excercise"
+name = "exercise"
 path = "main.rs"

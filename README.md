@@ -2,10 +2,11 @@
 Simple student manager written in [Rust](https://www.rust-lang.org/)
 
 ## Build and run instruction
-Go to [Rust website](https://www.rust-lang.org/) and install the rust compiler.
+Go to [Rust website](https://www.rust-lang.org/) and install the rust compiler/rust package manager.
+Naviage to the project folder using a terminal.
 ```bash
-rustc main.rs
-./main
+cargo run -- --version # to see build date and version
+cargo run              # to start program
 ```
 
 ## Demo
@@ -27,3 +28,18 @@ rustc main.rs
 
 #### Delete
 ![Delete](./screenshots/ex01/delete.png)
+
+### Exercise 02
+#### Some demos
+![Menu](./screenshots/ex02/menu.png)
+*Menu*
+![New Faculty](./screenshots/ex02/new_faculty.png)
+*New Faculty*
+![Search by Faculty](./screenshots/ex02/search_by_faculty.png)
+*Searcg by Faculty*
+![Export](./screenshots/ex02/export_xml1.png)
+*Export*
+![Import](./screenshots/ex02/import_xml1.png)
+*Import*
+![Import](./screenshots/ex02/logging.png)
+*Loggin*
