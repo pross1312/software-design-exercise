@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 use std::io;
+use std::env;
+use chrono::Local;
 use rusqlite::{Connection};
 use std::io::{BufWriter, BufReader, Write};
 use std::fs::{self, File};
@@ -421,6 +423,13 @@ impl SelectableEnum for FileFormat {
     }
 }
 
+macro_rules! log {
+    ($($arg:tt)*) => { File::options().create(true).append(true).open(LOG_FILE).unwrap().write_all(
+            format!("{} : {}\n", Local::now(), (format!($($arg)*))).as_bytes()
+        ).unwrap()
+    };
+}
+
 enum Operation {
     AddNewStudent(Student),
     DeleteStudent(String),
@@ -543,6 +552,7 @@ fn add_student(conn: &Connection, new_student: &Student) {
     if result != 1 {
         panic!("Could not insert new student");
     } else {
+        log!("Added new student with id {}, name {}", new_student.id, new_student.name);
         println!("Đã thêm 1 sinh viên");
         new_student.print();
         println!();
@@ -550,6 +560,7 @@ fn add_student(conn: &Connection, new_student: &Student) {
 }
 
 fn search_student(conn: &Connection, id_or_name: &str) -> Option<Student> {
+    log!("Search for student with id or name {}", id_or_name);
     if let Ok(student) = conn.query_row(
         "SELECT id, name, dob, phone, address, email, status, gender, faculty, enrolled_year, program FROM Student WHERE LOWER(id) = LOWER(?) OR LOWER(name) LIKE LOWER(?)",
         [id_or_name, id_or_name],
@@ -573,6 +584,7 @@ fn search_student(conn: &Connection, id_or_name: &str) -> Option<Student> {
 }
 
 fn update_student(conn: &Connection, _id: String, student: &Student) {
+    log!("Update info for student with id {}", student.id);
     conn.execute("UPDATE Student SET name = ?, dob = ?, phone = ?, address = ?, email = ?, status = ?, gender = ?, faculty = ?, enrolled_year = ?, program = ? WHERE id = ?", rusqlite::params![
                  student.name, student.dob, student.phone, student.address, student.email, student.status.id, student.gender, student.faculty.id, student.enrolled_year, student.program.id,
                  student.id
@@ -581,7 +593,12 @@ fn update_student(conn: &Connection, _id: String, student: &Student) {
 
 fn delete_student(conn: &Connection, id: &str) -> bool {
     let result = conn.execute("DELETE FROM Student WHERE id = ?", [id]).unwrap();
-    result == 1
+    return if result == 1 {
+        log!("Delete student with id {}", id);
+        true
+    } else {
+        false
+    }
 }
 
 fn add_faculty(conn: &Connection, name: &str) {
@@ -589,6 +606,7 @@ fn add_faculty(conn: &Connection, name: &str) {
     if result != 1 {
         panic!("Could not add new faculty");
     } else {
+        log!("Add new faculty {}", name);
         println!("Thêm khoa mới '{name}' thành công");
     }
 }
@@ -598,6 +616,7 @@ fn add_status(conn: &Connection, name: &str) {
     if result != 1 {
         panic!("Could not add new status");
     } else {
+        log!("Add new status {}", name);
         println!("Thêm trạng thái mới '{name}' thành công");
     }
 }
@@ -607,6 +626,7 @@ fn add_program(conn: &Connection, name: &str) {
     if result != 1 {
         panic!("Could not add new program");
     } else {
+        log!("Add new program {}", name);
         println!("Thêm chương trình học mới '{name}' thành công");
     }
 }
@@ -616,6 +636,7 @@ fn update_faculty(conn: &Connection, faculty: &Faculty) {
     if result != 1 {
         panic!("Could not update faculty");
     } else {
+        log!("Change faculty name with id {} to {}", faculty.id, faculty.name);
         println!("Đổi tên khoa thành công");
     }
 }
@@ -625,6 +646,7 @@ fn update_status(conn: &Connection, status: &Status) {
     if result != 1 {
         panic!("Could not update status");
     } else {
+        log!("Change status name with id {} to {}", status.id, status.name);
         println!("Đổi tên trạng thái thành công");
     }
 }
@@ -634,14 +656,17 @@ fn update_program(conn: &Connection, program: &Program) {
     if result != 1 {
         panic!("Could not update program");
     } else {
+        log!("Change program name with id {} to {}", program.id, program.name);
         println!("Đổi tên chương trình học thành công");
     }
 }
 
 fn search_by_faculty(conn: &Connection, Faculty{id, name}: &Faculty, student_name: Option<&str>) {
     let (mut stmt, args) = if None == student_name {
+        log!("Searching for all students in faculty {}", name);
         (conn.prepare("SELECT * FROM Student WHERE faculty = ?").unwrap(), rusqlite::params![id])
     } else {
+        log!("Searching for student in faculty {} with name or id {}", name, student_name.unwrap());
         (conn.prepare("SELECT * FROM Student WHERE Faculty = ? AND LOWER(name) LIKE LOWER(?)").unwrap(), rusqlite::params![id, student_name.unwrap()])
     };
     let iter = stmt.query_map(args, |row| {
@@ -683,6 +708,8 @@ fn insert_multiple_faculties(conn: &Connection, faculties: &[Faculty]) {
     for faculty in faculties {
         if let Err(_) = stmt.insert(rusqlite::params![faculty.id, faculty.name]) {
             println!("Không thể thêm '{}' và database", faculty.name);
+        } else {
+            log!("Inserted faculty with id {} and name {} into database", faculty.id, faculty.name);
         }
     }
 }
@@ -691,6 +718,8 @@ fn insert_multiple_statuses(conn: &Connection, statuses: &[Status]) {
     for status in statuses {
         if let Err(_) = stmt.insert(rusqlite::params![status.id, status.name]) {
             println!("Không thể thêm trạng thái '{}' và database", status.name);
+        } else {
+            log!("Inserted status with id {} and name {} into database", status.id, status.name);
         }
     }
 }
@@ -699,6 +728,8 @@ fn insert_multiple_programs(conn: &Connection, programs: &[Program]) {
     for program in programs {
         if let Err(_) = stmt.insert(rusqlite::params![program.id, program.name]) {
             println!("Không thể thêm chương trình '{}' và database", program.name);
+        } else {
+            log!("Inserted program with id {} and name {} into database", program.id, program.name);
         }
     }
 }
@@ -708,11 +739,14 @@ fn insert_multiple_students(conn: &Connection, students: &[Student]) {
     for student in students {
         if let Err(_) = stmt.insert(rusqlite::params![student.id, student.name, student.dob, student.phone, student.address, student.email, student.status.id, student.gender, student.faculty.id, student.enrolled_year, student.program.id]) {
             println!("Không thể thêm học sinh với mã số {} vào database", student.id);
+        } else {
+            log!("Inserted student with id {} into database", student.id);
         }
     }
 }
 
 fn export_data(conn: &Connection, file_name: &str, format: FileFormat) {
+    log!("Export data to {}", file_name);
     let path = Path::new(&file_name).with_extension(format.extension());
     let all_faculties = conn.prepare("SELECT * FROM Faculty").unwrap()
         .query_map([], |row| {
@@ -776,16 +810,17 @@ fn export_data(conn: &Connection, file_name: &str, format: FileFormat) {
 }
 
 fn import_data(conn: &Connection, file_name: &str, format: FileFormat) {
+    log!("Import data from {}", file_name);
     let path = Path::new(file_name).with_extension(format.extension());
     if let Ok(reader) = File::open(&path).and_then(|file| Ok(BufReader::new(file))) {
         let data: DataFormat = match format {
             FileFormat::Json => serde_json::from_reader(reader).unwrap(),
             FileFormat::Xml => quick_xml::de::from_reader(reader).unwrap(),
         };
-        insert_multiple_students(conn, &data.students);
         insert_multiple_faculties(conn, &data.faculties);
         insert_multiple_statuses(conn, &data.statuses);
         insert_multiple_programs(conn, &data.programs);
+        insert_multiple_students(conn, &data.students);
     } else {
         println!("{file_name} does not exist");
     }
@@ -793,8 +828,17 @@ fn import_data(conn: &Connection, file_name: &str, format: FileFormat) {
 
 const DB_PATH: &str = "data.db";
 const MIGRATION_SCRIPT: &str = "migrate.sql";
+const VERSION: &str = "2.0";
+const BUILD_DATE: &str = "19/02/2025";
+const LOG_FILE: &str = "data.log";
 
 fn main() {
+    for arg in env::args() {
+        if arg == "--version" {
+            println!("Version: {} - {}", VERSION, BUILD_DATE);
+            return;
+        }
+    }
     let conn = Connection::open(DB_PATH).unwrap();
     conn.execute_batch(&fs::read_to_string(MIGRATION_SCRIPT).unwrap()).unwrap();
 
