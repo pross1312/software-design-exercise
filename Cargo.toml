@@ -12,4 +12,4 @@ serde_json = { version = "1.0.138" }
 
 [[bin]]
 name = "exercise"
-path = "main.rs"
+path = "src/main.rs"
