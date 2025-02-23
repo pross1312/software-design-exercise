@@ -10,6 +10,16 @@ pub struct Program {
 }
 
 impl Program {
+    pub fn get_all(conn: &Connection) -> Vec<Program> {
+        conn.prepare("SELECT * FROM Program").unwrap()
+            .query_map([], |row| {
+                Ok(Program {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                })
+            }).unwrap().map(|result| result.unwrap()).collect::<Vec<Program>>()
+    }
+
     pub fn add(conn: &Connection, name: &str) {
         let result = conn.execute("INSERT INTO Program(name) values(?)", [name]).unwrap();
         if result != 1 {

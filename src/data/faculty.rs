@@ -10,6 +10,15 @@ pub struct Faculty {
 }
 
 impl Faculty {
+    pub fn get_all(conn: &Connection) -> Vec<Faculty> {
+        conn.prepare("SELECT * FROM Faculty").unwrap()
+            .query_map([], |row| {
+                Ok(Faculty {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                })
+            }).unwrap().map(|result| result.unwrap()).collect::<Vec<Faculty>>()
+    }
     pub fn add(conn: &Connection, name: &str) {
         let result = conn.execute("INSERT INTO Faculty(name) values(?)", [name]).unwrap();
         if result != 1 {

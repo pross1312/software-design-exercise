@@ -10,6 +10,16 @@ pub struct Status {
 }
 
 impl Status {
+    pub fn get_all(conn: &Connection) -> Vec<Status> {
+        conn.prepare("SELECT * FROM Status").unwrap()
+            .query_map([], |row| {
+                Ok(Status {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                })
+            }).unwrap().map(|result| result.unwrap()).collect::<Vec<Status>>()
+    }
+
     pub fn add(conn: &Connection, name: &str) {
         let result = conn.execute("INSERT INTO Status(name) values(?)", [name]).unwrap();
         if result != 1 {

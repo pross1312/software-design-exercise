@@ -10,10 +10,12 @@ mod io {
 }
 mod data {
     mod faculty;
+    mod student;
     mod program;
     mod status;
     mod gender;
     pub use faculty::*;
+    pub use student::*;
     pub use status::*;
     pub use program::*;
     pub use gender::*;
@@ -26,52 +28,6 @@ use std::path::Path;
 
 use io::*;
 use data::*;
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct Student {
-    id: String,
-    name: String,
-    dob: String,
-    phone: String,
-    address: String,
-    email: String,
-    status: Status,
-    gender: Gender,
-    faculty: Faculty,
-    enrolled_year: i32,
-    program: Program,
-}
-
-impl Student {
-    fn new() -> Self {
-        Self {
-            id: String::new(),
-            name: String::new(),
-            dob: String::new(),
-            phone: String::new(),
-            address: String::new(),
-            email: String::new(),
-            status: Status { id: 0, name: String::new() },
-            gender: Gender::Male,
-            faculty: Faculty { id: 0, name: String::new() },
-            enrolled_year: 2025,
-            program: Program { id: 0, name: String::new() },
-        }
-    }
-
-    fn print(&self) {
-        println!("Mã số sinh viên: {}", self.id);
-        println!("Họ tên: {}", self.name);
-        println!("Ngày tháng năm sinh: {}", self.dob);
-        println!("Giới tính: {}", self.gender.value());
-        println!("Khoa: {}", self.faculty.name);
-        println!("Khóa: {}", self.enrolled_year);
-        println!("Chương trình: {}", self.program.name);
-        println!("Địa chỉ: {}", self.address);
-        println!("Email: {}", self.email);
-        println!("Tình trạng sinh viên: {}", self.status.name);
-    }
-}
 
 fn validate_id(_id: &str) -> Option<&'static str> {
     None
@@ -297,60 +253,15 @@ fn update_student_fields(student: &mut Student, conn: &Connection) {
     }
 }
 
-fn add_student(conn: &Connection, new_student: &Student) {
-    let result = conn.execute("INSERT INTO Student(id, name, dob, phone, address, email, status, gender, faculty, enrolled_year, program) 
-                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rusqlite::params![
-                 new_student.id, new_student.name, new_student.dob, new_student.phone, new_student.address, new_student.email, new_student.status.id, new_student.gender, new_student.faculty.id, new_student.enrolled_year, new_student.program.id
-                 ]).unwrap();
-    if result != 1 {
-        panic!("Could not insert new student");
-    } else {
-        log!("Added new student with id {}, name {}", new_student.id, new_student.name);
-        println!("Đã thêm 1 sinh viên");
-        new_student.print();
-        println!();
-    }
-}
-
 fn search_student(conn: &Connection, id_or_name: &str) -> Option<Student> {
     log!("Search for student with id or name {}", id_or_name);
     if let Ok(student) = conn.query_row(
         "SELECT id, name, dob, phone, address, email, status, gender, faculty, enrolled_year, program FROM Student WHERE LOWER(id) = LOWER(?) OR LOWER(name) LIKE LOWER(?)",
         [id_or_name, id_or_name],
-        |row| Ok(Student {
-            id: row.get(0)?,
-            name: row.get(1)?,
-            dob: row.get(2)?,
-            phone: row.get(3)?,
-            address: row.get(4)?,
-            email: row.get(5)?,
-            status: Status::parse_choice(row.get(6)?, conn).unwrap(),
-            gender: Gender::parse_choice(row.get(7)?, conn).unwrap(),
-            faculty: Faculty::parse_choice(row.get(8)?, conn).unwrap(),
-            enrolled_year: row.get(9)?,
-            program: Program::parse_choice(row.get(10)?, conn).unwrap(),
-        }) ) {
+        |row| Student::map_row(conn, row)) {
         Some(student)
     } else {
         None
-    }
-}
-
-fn update_student(conn: &Connection, _id: String, student: &Student) {
-    log!("Update info for student with id {}", student.id);
-    conn.execute("UPDATE Student SET name = ?, dob = ?, phone = ?, address = ?, email = ?, status = ?, gender = ?, faculty = ?, enrolled_year = ?, program = ? WHERE id = ?", rusqlite::params![
-                 student.name, student.dob, student.phone, student.address, student.email, student.status.id, student.gender, student.faculty.id, student.enrolled_year, student.program.id,
-                 student.id
-                 ]).unwrap();
-}
-
-fn delete_student(conn: &Connection, id: &str) -> bool {
-    let result = conn.execute("DELETE FROM Student WHERE id = ?", [id]).unwrap();
-    return if result == 1 {
-        log!("Delete student with id {}", id);
-        true
-    } else {
-        false
     }
 }
 
@@ -364,19 +275,7 @@ fn search_by_faculty(conn: &Connection, Faculty{id, name}: &Faculty, student_nam
         (conn.prepare("SELECT * FROM Student WHERE Faculty = ? AND LOWER(name) LIKE LOWER(?)").unwrap(), rusqlite::params![id, student_name.unwrap()])
     };
     let iter = stmt.query_map(args, |row| {
-        Ok(Student {
-            id: row.get(0)?,
-            name: row.get(1)?,
-            dob: row.get(2)?,
-            phone: row.get(3)?,
-            address: row.get(4)?,
-            email: row.get(5)?,
-            status: Status::parse_choice(row.get(6)?, conn).unwrap(),
-            gender: Gender::parse_choice(row.get(7)?, conn).unwrap(),
-            faculty: Faculty::parse_choice(row.get(8)?, conn).unwrap(),
-            enrolled_year: row.get(9)?,
-            program: Program::parse_choice(row.get(10)?, conn).unwrap(),
-        })
+        Student::map_row(conn, row)
     }).unwrap();
     if student_name == None {
         println!("Các học sinh trong {name} là");
@@ -397,77 +296,24 @@ struct DataFormat {
     students: Vec<Student>,
 }
 
-fn insert_multiple_students(conn: &Connection, students: &[Student]) {
-    let mut stmt = conn.prepare("INSERT INTO Student(id, name, dob, phone, address, email, status, gender, faculty, enrolled_year, program) 
-                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").unwrap();
-    for student in students {
-        if let Err(_) = stmt.insert(rusqlite::params![student.id, student.name, student.dob, student.phone, student.address, student.email, student.status.id, student.gender, student.faculty.id, student.enrolled_year, student.program.id]) {
-            println!("Không thể thêm học sinh với mã số {} vào database", student.id);
-        } else {
-            log!("Inserted student with id {} into database", student.id);
-        }
-    }
-}
-
 fn export_data(conn: &Connection, file_name: &str, format: FileFormat) {
     log!("Export data to {}", file_name);
     let path = Path::new(&file_name).with_extension(format.extension());
-    let all_faculties = conn.prepare("SELECT * FROM Faculty").unwrap()
-        .query_map([], |row| {
-            Ok(Faculty {
-                id: row.get(0)?,
-                name: row.get(1)?,
-            })
-        }).unwrap().map(|result| result.unwrap()).collect::<Vec<Faculty>>();
-    let all_statuses = conn.prepare("SELECT * FROM Status").unwrap()
-        .query_map([], |row| {
-            Ok(Status {
-                id: row.get(0)?,
-                name: row.get(1)?,
-            })
-        }).unwrap().map(|result| result.unwrap()).collect::<Vec<Status>>();
-    let all_programs = conn.prepare("SELECT * FROM Program").unwrap()
-        .query_map([], |row| {
-            Ok(Program {
-                id: row.get(0)?,
-                name: row.get(1)?,
-            })
-        }).unwrap().map(|result| result.unwrap()).collect::<Vec<Program>>();
-    let all_students = conn.prepare("SELECT * FROM Student").unwrap()
-        .query_map([], |row| {
-            Ok(Student {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                dob: row.get(2)?,
-                phone: row.get(3)?,
-                address: row.get(4)?,
-                email: row.get(5)?,
-                status: Status::parse_choice(row.get(6)?, conn).unwrap(),
-                gender: Gender::parse_choice(row.get(7)?, conn).unwrap(),
-                faculty: Faculty::parse_choice(row.get(8)?, conn).unwrap(),
-                enrolled_year: row.get(9)?,
-                program: Program::parse_choice(row.get(10)?, conn).unwrap(),
-            })
-        }).unwrap().map(|result| result.unwrap()).collect::<Vec<Student>>();
+    let data = DataFormat {
+        statuses: Status::get_all(conn),
+        programs: Program::get_all(conn),
+        faculties: Faculty::get_all(conn),
+        students: Student::get_all(conn),
+    };
 
     let mut writer = BufWriter::new(File::create(&path).unwrap());
     match format {
         FileFormat::Json => {
-            serde_json::to_writer(writer, &DataFormat {
-                statuses: all_statuses,
-                programs: all_programs,
-                faculties: all_faculties,
-                students: all_students,
-            }).unwrap();
+            serde_json::to_writer(writer, &data).unwrap();
         },
         FileFormat::Xml => {
             writer.write_all(
-                quick_xml::se::to_string(&DataFormat {
-                    statuses: all_statuses,
-                    programs: all_programs,
-                    faculties: all_faculties,
-                    students: all_students,
-                }).unwrap().as_bytes()
+                quick_xml::se::to_string(&data).unwrap().as_bytes()
             ).unwrap();
         },
     };
@@ -484,7 +330,7 @@ fn import_data(conn: &Connection, file_name: &str, format: FileFormat) {
         Faculty::add_many(conn, &data.faculties);
         Status::add_many(conn, &data.statuses);
         Program::add_many(conn, &data.programs);
-        insert_multiple_students(conn, &data.students);
+        Student::add_many(conn, &data.students);
     } else {
         println!("{file_name} does not exist");
     }
@@ -510,7 +356,7 @@ fn main() {
                 if let Some(student) = search_student(&conn, &new_student.id) {
                     println!("Học sinh với mã số {} đã tồn tại, không thể thêm học sinh mới vào", student.id);
                 } else {
-                    add_student(&conn, &new_student);
+                    Student::add(&conn, &new_student);
                 }
             },
             Operation::UpdateStudent(id) => {
@@ -519,7 +365,7 @@ fn main() {
                     update_student_fields(&mut student, &conn);
                     println!("Thông tin của sinh viên sau khi sửa");
                     student.print();
-                    update_student(&conn, id, &student);
+                    Student::update(&conn, &id, &student);
                 } else {
                     println!("Không thể tìm thấy sinh viên có mã số {}", id);
                 }
@@ -534,7 +380,7 @@ fn main() {
                 }
             },
             Operation::DeleteStudent(id) => {
-                if delete_student(&conn, &id) {
+                if Student::delete(&conn, &id) {
                     println!("Xóa thành công sinh viên với mã số {}", id);
                 } else {
                     println!("Không thể tìm thấy sinh viên với mã số {}", id);
