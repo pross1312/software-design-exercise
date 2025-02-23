@@ -338,12 +338,15 @@ fn import_data(conn: &Connection, file_name: &str, format: FileFormat) {
 
 const DB_PATH: &str = "data.db";
 const MIGRATION_SCRIPT: &str = "migrate.sql";
-const VERSION: &str = "2.0";
-const BUILD_DATE: &str = "19/02/2025";
 fn main() {
+    let build_date = std::env::var("DATE").unwrap();
+    let version = std::env::var("VERSION").unwrap();
+    let git_hash = std::env::var("GIT_HASH").unwrap_or("Could not get git hash as you don't have git installed.".to_string());
     for arg in env::args() {
         if arg == "--version" {
-            println!("Version: {} - {}", VERSION, BUILD_DATE);
+            println!("Version: {}", version);
+            println!("Build date: {}", build_date);
+            println!("Git hash: {}", git_hash);
             return;
         }
     }

@@ -3,6 +3,9 @@ name = "exercise"
 version = "0.1.0"
 edition = "2021"
 
+[build-dependencies]
+chrono = "0.4.39"
+
 [dependencies]
 chrono = "0.4.39"
 quick-xml = { version = "0.37.2", features = ["serialize"] }
