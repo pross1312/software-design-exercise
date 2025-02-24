@@ -1,0 +1,34 @@
+**TRƯỜNG ĐẠI HỌC ${school_name_upper_case}$**
+**PHÒNG CÔNG TÁC SINH VIÊN**
+- Địa chỉ: ${school_address}$
+- Điện thoại: ${school_phone_number}$ | Email: ${school_email}$
+
+------------------------------------------------------------------
+
+### **GIẤY XÁC NHẬN TÌNH TRẠNG SINH VIÊN**
+
+Trường Đại học ${school_name}$ xác nhận:
+
+**1. Thông tin sinh viên:**
+- **Họ và tên:** ${student_name}$
+- **Mã số sinh viên:** ${student_id}$
+- **Ngày sinh:** ${student_dob}$
+- **Giới tính:** ${student_gender}$
+- **Khoa:** ${student_faculty}$
+- **Chương trình đào tạo:** ${student_program}$
+- **Khóa:** ${student_enrolled_year}$
+
+**2. Tình trạng sinh viên hiện tại:** ${student_status}$
+
+**3. Mục đích xác nhận:** ${issue_reason}$
+
+**4. Thời gian cấp giấy:** ${expired_date}$
+
+**Xác nhận của Trường Đại học ${school_name}$**
+
+Ngày cấp: ${issued_date}$
+
+🖋 **Trưởng Phòng Đào Tạo**
+(Ký, ghi rõ họ tên, đóng dấu)
+
+

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giấy Xác Nhận Tình Trạng Sinh Viên</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+        }
+        h3 {
+            text-align: center;
+        }
+        .header {
+            text-align: center;
+            font-weight: bold;
+        }
+        .info {
+            margin-top: 20px;
+        }
+        .signature {
+            margin-top: 40px;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <p>TRƯỜNG ĐẠI HỌC ${school_name_upper_case}$</p>
+        <p>PHÒNG CÔNG TÁC SINH VIÊN</p>
+        <p>Địa chỉ: ${school_address}$</p>
+        <p>Điện thoại: ${school_phone_number}$ | Email: ${school_email}$</p>
+    </div>
+
+    <hr>
+
+    <h3>GIẤY XÁC NHẬN TÌNH TRẠNG SINH VIÊN</h3>
+
+    <p>Trường Đại học ${school_name}$ xác nhận:</p>
+
+    <div class="info">
+        <p><strong>1. Thông tin sinh viên:</strong></p>
+        <p><strong>Họ và tên:</strong> ${student_name}$</p>
+        <p><strong>Mã số sinh viên:</strong> ${student_id}$</p>
+        <p><strong>Ngày sinh:</strong> ${student_dob}$</p>
+        <p><strong>Giới tính:</strong> ${student_gender}$</p>
+        <p><strong>Khoa:</strong> ${student_faculty}$</p>
+        <p><strong>Chương trình đào tạo:</strong> ${student_program}$</p>
+        <p><strong>Khóa:</strong> ${student_enrolled_year}$</p>
+
+        <p><strong>2. Tình trạng sinh viên hiện tại:</strong> ${student_status}$</p>
+        <p><strong>3. Mục đích xác nhận:</strong> ${issue_reason}$</p>
+        <p><strong>4. Thời gian cấp giấy:</strong> ${expired_date}$</p>
+    </div>
+
+    <div class="signature">
+        <p><strong>Xác nhận của Trường Đại học ${school_name}$</strong></p>
+        <p>Ngày cấp: ${issued_date}$</p>
+        <p><strong>Trưởng Phòng Đào Tạo</strong></p>
+        <p>(Ký, ghi rõ họ tên, đóng dấu)</p>
+    </div>
+
+</body>
+</html>
+

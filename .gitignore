@@ -1,8 +1,5 @@
-Ex02_HuongDan.md
-Ex03_UnitTests.md
-Ex03_BusinessRules.md
-Ex1.md
 main
+requirements/
 *.zip
 *.db
 *.json

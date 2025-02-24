@@ -39,6 +39,7 @@ impl Student {
     pub fn print(&self) {
         println!("Mã số sinh viên: {}", self.id);
         println!("Họ tên: {}", self.name);
+        println!("Số điện thoại: {}", self.phone);
         println!("Ngày tháng năm sinh: {}", self.dob);
         println!("Giới tính: {}", self.gender.value());
         println!("Khoa: {}", self.faculty.name);

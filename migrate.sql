@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS Program(
     name TEXT
 );
 
-CREATE TABLE IF NOT EXISTS Student(
+CREATE TABLE IF NOT EXISTS Student_new(
     id VARCHAR(20) NOT NULL PRIMARY KEY,
     name TEXT,
     dob TEXT,
@@ -24,8 +24,16 @@ CREATE TABLE IF NOT EXISTS Student(
     gender INTEGER,
     faculty INTEGER REFERENCES Faculty(id),
     enrolled_year INTEGER CHECK(enrolled_year > 0),
-    program INTEGER REFERENCES Program(id)
+    program INTEGER REFERENCES Program(id),
+    created_time INTEGER DEFAULT (UNIXEPOCH())
 );
+
+BEGIN;
+    INSERT INTO Student_new (id, name, dob, phone, address, email, status, gender, faculty, enrolled_year, program)
+    SELECT id, name, dob, phone, address, email, status, gender, faculty, enrolled_year, program FROM Student;
+COMMIT;
+DROP TABLE IF EXISTS Student;
+ALTER TABLE Student_new RENAME TO Student;
 
 -- initialize database with some data if empty
 BEGIN;
@@ -40,3 +48,4 @@ BEGIN;
     INSERT OR IGNORE INTO Program(id, name) VALUES(1, 'Thường'),
                                         (2, 'Chất lượng cao');
 COMMIT;
+
