@@ -51,11 +51,11 @@ use data::*;
     }
 }
 
-fn validate_id(_id: &str) -> Option<&'static str> {
+fn validate_id(_id: &str) -> Option<String> {
     None
 }
 
-fn validate_phone(phone: &str) -> Option<&'static str> {
+fn validate_phone(phone: &str) -> Option<String> {
     let Some(phone_pattern) = BusinessRule::phone_regex() else {
         return None;
     };
@@ -63,11 +63,11 @@ fn validate_phone(phone: &str) -> Option<&'static str> {
     if phone_regex.is_match(phone) {
         None
     } else {
-        Some("Số điện thoại không hợp lệ, vui lòng nhập lại.")
+        Some("Số điện thoại không hợp lệ, vui lòng nhập lại.".to_string())
     }
 }
 
-fn validate_email(email: &str) -> Option<&'static str> {
+fn validate_email(email: &str) -> Option<String> {
     let Some(email_domain) = BusinessRule::email() else {
         return None;
     };
@@ -76,7 +76,7 @@ fn validate_email(email: &str) -> Option<&'static str> {
     if email_regex.is_match(email) {
         None
     } else {
-        Some("Email không hợp lệ")
+        Some(format!("Email phải thuộc tên miền {email_domain}"))
     }
 }
 
@@ -94,20 +94,20 @@ fn check_date(day: u32, month: u32, year: u32) -> bool {
 }
 
 // dd/mm/yyyy
-fn validate_date(date: &str) -> Option<&'static str> {
+fn validate_date(date: &str) -> Option<String> {
     let mut data = [0u32; 3];
     if date.len() > 10 {
-        return Some("Sai định dạng dd/mm/yyyy, vui lòng nhập lại");
+        return Some("Sai định dạng dd/mm/yyyy, vui lòng nhập lại".to_string());
     }
     for (i, number) in date.splitn(3, |c| c == '/').enumerate() {
         if let Ok(n) = number.parse::<u32>() {
             data[i] = n;
         } else {
-            return Some("Sai định dạng dd/mm/yyyy, vui lòng nhập lại");
+            return Some("Sai định dạng dd/mm/yyyy, vui lòng nhập lại".to_string());
         }
     }
     if !check_date(data[0], data[1], data[2]) {
-        Some("Ngày không hợp lệ, vui lòng nhập lại")
+        Some("Ngày không hợp lệ, vui lòng nhập lại".to_string())
     } else {
         None
     }
@@ -529,10 +529,10 @@ fn main() {
             Operation::Config(option) => {
                 match option {
                     ConfigOption::EmailDomain(new_domain) => {
-                        BusinessRule::set_email(&new_domain);
+                        BusinessRule::set_email(new_domain);
                     },
                     ConfigOption::PhonePattern(phone_pattern) => {
-                        BusinessRule::set_phone_number_pattern(&phone_pattern);
+                        BusinessRule::set_phone_number_pattern(phone_pattern);
                     },
                     ConfigOption::StatusRule => {
                         todo!();

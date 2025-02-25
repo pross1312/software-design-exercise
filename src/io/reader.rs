@@ -70,8 +70,8 @@ pub fn read_number_until_correct(prompt: &str, start: i32, end: i32) -> i32 {
     }
 }
 
-pub type ValidateFn = fn(&str) -> Option<&'static str>;
-pub fn read_string_until_correct(prompt: &'static str, buffer: &mut String, validate: ValidateFn) -> usize {
+pub type ValidateFn = fn(&str) -> Option<String>;
+pub fn read_string_until_correct(prompt: &str, buffer: &mut String, validate: ValidateFn) -> usize {
     loop {
         let n = read_string(prompt, buffer).unwrap();
         match validate(&buffer) {

@@ -3,6 +3,7 @@ use enum_count::EnumCount;
 use crate::static_assert;
 use rusqlite::{Connection};
 use crate::io::*;
+use regex::Regex;
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 
@@ -23,9 +24,34 @@ impl SelectableEnum for ConfigOption {
     }
     fn parse_choice(choice: i32, _conn: &Connection) -> Option<Self> where Self: Sized {
         static_assert!(ENUM_CONFIGOPTION_COUNT == 3, "Changed this");
+        const validate_phone_number_pattern: ValidateFn = |pattern| {
+            const phone_rule_pattern: &str = r"^(?:\[\d(?:\|\d)*\]|x|\d)+$";
+            let regex = Regex::new(phone_rule_pattern).unwrap();
+            if regex.is_match(pattern) {
+                None
+            } else {
+                Some("Định dạng số điện thoại không hợp lệ, vui lòng nhập lại".to_string())
+            }
+        };
+        const validate_email_domain: ValidateFn = |domain: &str| {
+            const domain_pattern: &str = r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$";
+            let regex = Regex::new(domain_pattern).unwrap();
+            if regex.is_match(domain) {
+                None
+            } else {
+                Some("Tên miền không hợp lệ, vui lòng nhập lại".to_string())
+            }
+        };
+        let mut buffer = String::new();
         match choice {
-            1 => Some(ConfigOption::EmailDomain(read_string_new("Nhập tên miền mới"))),
-            2 => Some(ConfigOption::PhonePattern(read_string_new("Nhập định dạng mới cho số điện thoại (vd 0[3|5|7|8|9]xxxxxxxx)"))),
+            1 => Some({
+                read_string_until_correct("Nhập tên miền mới", &mut buffer, validate_email_domain);
+                ConfigOption::EmailDomain(buffer)
+            }),
+            2 => Some({
+                read_string_until_correct("Nhập định dạng mới cho số điện thoại (vd 0[3|5|7|8|9]xxxxxxxx)", &mut buffer, validate_phone_number_pattern);
+                ConfigOption::PhonePattern(buffer)
+            }),
             3 => todo!(),
             _ => None
         }
@@ -61,11 +87,26 @@ impl BusinessRule {
 
     pub fn phone_regex() -> Option<String> {
         unsafe {
-            let Some(_phone_pattern) = &business_rule.phone_pattern else {
+            let Some(phone_pattern) = &business_rule.phone_pattern else {
                 return None;
             };
+            let mut regex = "^".to_string();
+            let slices = &mut phone_pattern.trim().chars();
+            while let Some(ch) = slices.next() {
+                if ch == '|' {
+                    continue;
+                } else if ch == '[' || ch == ']' || ch.is_numeric() {
+                    regex.push(ch);
+                } else if ch == 'x' {
+                    regex.push_str(r"\d");
+                } else {
+                    panic!("Invalid phone number pattern");
+                }
+            }
+            regex.push('$');
+            // println!("{regex}");
+            Some(regex)
         }
-        todo!();
     }
 
     pub fn email() -> Option<&'static String> {
@@ -74,11 +115,15 @@ impl BusinessRule {
         }
     }
 
-    pub fn set_email(_email: &str) {
-        todo!();
+    pub fn set_email(email: String) {
+        unsafe {
+            business_rule.email_domain = Some(email);
+        }
     }
 
-    pub fn set_phone_number_pattern(_pattern: &str) {
-        todo!();
+    pub fn set_phone_number_pattern(pattern: String) {
+        unsafe {
+            business_rule.phone_pattern = Some(pattern);
+        }
     }
 }
