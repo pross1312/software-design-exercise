@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![allow(non_upper_case_globals)]
 mod business_config;
+
 mod io {
     mod template;
     mod reader;
@@ -23,6 +24,15 @@ mod data {
     pub use program::*;
     pub use gender::*;
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test() {
+        assert_eq!(1+2, 3);
+    }
+}
+
 extern crate enum_count;
 use business_config::*;
 use io::Template;
