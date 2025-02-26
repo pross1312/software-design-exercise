@@ -29,6 +29,13 @@ fn test_validate_phone_pattern_valid() {
 }
 
 #[test]
+#[should_panic(expected = "Invalid phone number pattern '0[3|5|7|8|9]ABxCxxDx'")]
+fn test_validate_phone_when_invalid_pattern() {
+    BusinessRule::set_phone_number_pattern("0[3|5|7|8|9]ABxCxxDx".to_string());
+    validate_phone("0908063538");
+}
+
+#[test]
 fn test_validate_phone_valid() {
     BusinessRule::set_phone_number_pattern("0[3|5|7|8|9]xxxxxxxx".to_string());
     if let Some(_) = validate_phone("0908063538") {

@@ -106,7 +106,7 @@ impl BusinessRule {
             } else if ch == 'x' {
                 regex.push_str(r"\d");
             } else {
-                panic!("Invalid phone number pattern '{phone_pattern}' {} {}", ch, phone_pattern.len());
+                panic!("Invalid phone number pattern '{phone_pattern}'");
             }
         }
         regex.push('$');
