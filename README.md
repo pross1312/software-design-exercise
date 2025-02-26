@@ -5,8 +5,9 @@ Simple student manager written in [Rust](https://www.rust-lang.org/)
 Go to [Rust website](https://www.rust-lang.org/) and install the rust compiler/rust package manager.
 Naviage to the project folder using a terminal.
 ```bash
-cargo run -- --version # to see build date and version
-cargo run              # to start program
+cargo test -- --test-threads=1 # to run unit test with 1 thread (multithread is not supported yet)
+cargo run  -- --version        # to see build date and version
+cargo run                      # to start program
 ```
 
 ## Demo

@@ -27,10 +27,7 @@ mod data {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn test() {
-        assert_eq!(1+2, 3);
-    }
+    mod test;
 }
 
 extern crate enum_count;

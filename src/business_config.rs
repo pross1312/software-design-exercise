@@ -14,6 +14,26 @@ pub enum ConfigOption {
     StatusRule,
 }
 
+pub fn validate_email_domain(domain: &str) -> Option<String> {
+    const domain_pattern: &str = r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$";
+    let regex = Regex::new(domain_pattern).unwrap();
+    if regex.is_match(domain) {
+        None
+    } else {
+        Some("Tên miền không hợp lệ, vui lòng nhập lại".to_string())
+    }
+}
+
+pub fn validate_phone_number_pattern(pattern: &str) -> Option<String> {
+    const phone_rule_pattern: &str = r"^(?:\[\d(?:\|\d)*\]|x|\d)+$";
+    let regex = Regex::new(phone_rule_pattern).unwrap();
+    if regex.is_match(pattern) {
+        None
+    } else {
+        Some("Định dạng số điện thoại không hợp lệ, vui lòng nhập lại".to_string())
+    }
+}
+
 impl SelectableEnum for ConfigOption {
     fn print_choices(_conn: &Connection) -> usize {
         static_assert!(ENUM_CONFIGOPTION_COUNT == 3, "Changed this");
@@ -22,26 +42,9 @@ impl SelectableEnum for ConfigOption {
         println!("3. Đổi luật khi thay đổi tình trạng sinh viên");
         3
     }
+
     fn parse_choice(choice: i32, _conn: &Connection) -> Option<Self> where Self: Sized {
         static_assert!(ENUM_CONFIGOPTION_COUNT == 3, "Changed this");
-        const validate_phone_number_pattern: ValidateFn = |pattern| {
-            const phone_rule_pattern: &str = r"^(?:\[\d(?:\|\d)*\]|x|\d)+$";
-            let regex = Regex::new(phone_rule_pattern).unwrap();
-            if regex.is_match(pattern) {
-                None
-            } else {
-                Some("Định dạng số điện thoại không hợp lệ, vui lòng nhập lại".to_string())
-            }
-        };
-        const validate_email_domain: ValidateFn = |domain: &str| {
-            const domain_pattern: &str = r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$";
-            let regex = Regex::new(domain_pattern).unwrap();
-            if regex.is_match(domain) {
-                None
-            } else {
-                Some("Tên miền không hợp lệ, vui lòng nhập lại".to_string())
-            }
-        };
         let mut buffer = String::new();
         match choice {
             1 => Some({
@@ -63,6 +66,7 @@ pub struct BusinessRule {
     email_domain: Option<String>,
     phone_pattern: Option<String>,
 }
+// NOTE: MUST NOT RUN MULTITHREADED
 static mut business_rule: BusinessRule = BusinessRule {
     email_domain: None,
     phone_pattern: None,
@@ -86,27 +90,28 @@ impl BusinessRule {
     }
 
     pub fn phone_regex() -> Option<String> {
-        unsafe {
+        let phone_pattern = unsafe {
             let Some(phone_pattern) = &business_rule.phone_pattern else {
                 return None;
             };
-            let mut regex = "^".to_string();
-            let slices = &mut phone_pattern.trim().chars();
-            while let Some(ch) = slices.next() {
-                if ch == '|' {
-                    continue;
-                } else if ch == '[' || ch == ']' || ch.is_numeric() {
-                    regex.push(ch);
-                } else if ch == 'x' {
-                    regex.push_str(r"\d");
-                } else {
-                    panic!("Invalid phone number pattern");
-                }
+            phone_pattern
+        };
+        let mut regex = "^".to_string();
+        let mut slices = phone_pattern.trim().chars();
+        while let Some(ch) = slices.next() {
+            if ch == '|' {
+                continue;
+            } else if ch == '[' || ch == ']' || ch.is_numeric() {
+                regex.push(ch);
+            } else if ch == 'x' {
+                regex.push_str(r"\d");
+            } else {
+                panic!("Invalid phone number pattern '{phone_pattern}' {} {}", ch, phone_pattern.len());
             }
-            regex.push('$');
-            // println!("{regex}");
-            Some(regex)
         }
+        regex.push('$');
+        // println!("{regex}");
+        Some(regex)
     }
 
     pub fn email() -> Option<&'static String> {
