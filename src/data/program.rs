@@ -5,7 +5,7 @@ use crate::log;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Program {
-    pub id: i32,
+    pub id: i64,
     pub name: String,
 }
 
@@ -20,13 +20,14 @@ impl Program {
             }).unwrap().map(|result| result.unwrap()).collect::<Vec<Program>>()
     }
 
-    pub fn add(conn: &Connection, name: &str) {
+    pub fn add(conn: &Connection, name: &str) -> i64 {
         let result = conn.execute("INSERT INTO Program(name) values(?)", [name]).unwrap();
         if result != 1 {
             panic!("Could not add new program");
         } else {
             log!("Add new program {}", name);
             println!("Thêm chương trình học mới '{name}' thành công");
+            return conn.last_insert_rowid();
         }
     }
 

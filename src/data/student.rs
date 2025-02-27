@@ -28,11 +28,11 @@ impl Student {
             phone: String::new(),
             address: String::new(),
             email: String::new(),
-            status: Status { id: 0, name: String::new() },
+            status: Status { id: 1, name: String::new() },
             gender: Gender::Male,
-            faculty: Faculty { id: 0, name: String::new() },
+            faculty: Faculty { id: 1, name: String::new() },
             enrolled_year: 2025,
-            program: Program { id: 0, name: String::new() },
+            program: Program { id: 1, name: String::new() },
         }
     }
 

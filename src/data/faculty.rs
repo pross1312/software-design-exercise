@@ -5,7 +5,7 @@ use crate::io::SelectableEnum;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Faculty {
-    pub id: i32,
+    pub id: i64,
     pub name: String,
 }
 
@@ -19,13 +19,14 @@ impl Faculty {
                 })
             }).unwrap().map(|result| result.unwrap()).collect::<Vec<Faculty>>()
     }
-    pub fn add(conn: &Connection, name: &str) {
+    pub fn add(conn: &Connection, name: &str) -> i64 {
         let result = conn.execute("INSERT INTO Faculty(name) values(?)", [name]).unwrap();
         if result != 1 {
             panic!("Could not add new faculty");
         } else {
             log!("Add new faculty {}", name);
             println!("Thêm khoa mới '{name}' thành công");
+            return conn.last_insert_rowid();
         }
     }
 

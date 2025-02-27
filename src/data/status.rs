@@ -5,7 +5,7 @@ use crate::log;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Status {
-    pub id: i32,
+    pub id: i64,
     pub name: String,
 }
 
@@ -20,13 +20,14 @@ impl Status {
             }).unwrap().map(|result| result.unwrap()).collect::<Vec<Status>>()
     }
 
-    pub fn add(conn: &Connection, name: &str) {
+    pub fn add(conn: &Connection, name: &str) -> i64 {
         let result = conn.execute("INSERT INTO Status(name) values(?)", [name]).unwrap();
         if result != 1 {
             panic!("Could not add new status");
         } else {
             log!("Add new status {}", name);
             println!("Thêm trạng thái mới '{name}' thành công");
+            return conn.last_insert_rowid();
         }
     }
 

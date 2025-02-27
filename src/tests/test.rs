@@ -103,3 +103,79 @@ fn test_tempate_render_valid() {
     ]));
     assert_eq!(rendered, "123");
 }
+
+struct TestDb {
+    conn: Connection,
+    db_file_path: String,
+}
+impl TestDb {
+    fn new(path: String) -> Self {
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch(&fs::read_to_string(crate::MIGRATION_SCRIPT).unwrap()).unwrap();
+        Self {
+            conn,
+            db_file_path: path,
+        }
+    }
+}
+
+// remove db file on drop
+impl Drop for TestDb {
+    fn drop(&mut self) {
+        std::fs::remove_file(&self.db_file_path).unwrap();
+    }
+}
+
+#[test]
+fn test_default_data() {
+    let db = TestDb::new("test_default_data.db".to_string());
+    assert!(Status::get_all(&db.conn).len() != 0, "Expect default data");
+    assert!(Program::get_all(&db.conn).len() != 0, "Expect default data");
+    assert!(Faculty::get_all(&db.conn).len() != 0, "Expect default data");
+}
+
+#[test]
+fn test_faculty_insert() {
+    let db = TestDb::new("test_faculty_insert.db".to_string());
+    assert!(Faculty::add(&db.conn, "Test Faculty") != 0);
+}
+
+#[test]
+fn test_status_insert() {
+    let db = TestDb::new("test_status_insert.db".to_string());
+    assert!(Status::add(&db.conn, "Test Status") != 0);
+}
+
+#[test]
+fn test_program_insert() {
+    let db = TestDb::new("test_program_insert.db".to_string());
+    assert!(Program::add(&db.conn, "Test Program") != 0);
+}
+
+#[test]
+fn test_student_insert() {
+    // NOTE: faculty, status, and program all have some initial values already so foreign
+    // constraint is satisfied if id = 1
+    let db = TestDb::new("test_student_insert_default.db".to_string());
+    let mut student = Student::new();
+    student.id = "21127720".to_string();
+    student.name = "Tuong".to_string();
+    Student::add(&db.conn, &student);
+    let students = Student::get_all(&db.conn);
+    assert_eq!(students.len(), 1);
+    assert_eq!(&students[0].name, "Tuong");
+}
+
+#[test]
+fn test_search_student_by_name_or_id() {
+    const mock_id: &str = "21127720";
+    const mock_name: &str = "Tuong";
+    let db = TestDb::new("test_student_insert_default.db".to_string());
+    let mut student = Student::new();
+    student.id = mock_id.to_string();
+    student.name = mock_name.to_string();
+    Student::add(&db.conn, &student);
+    let searched_student = crate::search_student(&db.conn, mock_id).unwrap();
+    assert_eq!(searched_student.id, mock_id);
+    assert_eq!(searched_student.name, mock_name);
+}
