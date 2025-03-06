@@ -2,6 +2,32 @@ use rusqlite::{Connection};
 use std::io::{self, Write};
 use super::selectable_enum::SelectableEnum;
 
+pub fn read_boolean(prompt_yes: &str, prompt_no: &str) -> bool {
+    let mut input = String::new();
+    loop {
+        println!("1. {}", prompt_yes);
+        println!("2. {}", prompt_no);
+        match read_string(&"Chọn một trong những giá trị trên", &mut input) {
+            Ok(_) => match input.parse::<i32>() {
+                Ok(choice) => {
+                    if choice == 1 {
+                        return true;
+                    } else if choice == 2 {
+                        return false;
+                    } else {
+                        println!("Lụa chọn '{}' không hợp lệ, vui lòng chọn lại", input)
+                    }
+                },
+                Err(_) => {
+                    println!("Lựa chọn '{}' không hợp lệ, vui lòng chọn lại", input)
+                },
+            },
+            Err(err) => panic!("{}", err),
+        };
+        println!();
+    }
+}
+
 pub fn read_string(prompt: &str, buffer: &mut String) -> Result<usize, std::io::Error> {
     buffer.clear();
     print!("{}: ", prompt);

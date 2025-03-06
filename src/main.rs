@@ -422,7 +422,7 @@ fn export_student_status(conn: &Connection, id: &str, reason: &str, format: &Stu
         return;
     };
     let content = Template::render(&file_content, std::collections::HashMap::from([
-        ("school_name_upper_case", "UNIVERSITY OF SCIENCE - VNUHCM"),
+        ("school_name_upper_case", SCHOOL_NAME),
         ("school_address", "227 Nguyễn Văn Cừ, Phường 4, Quận 5, Hồ Chí Minh, Việt Nam"),
         ("school_phone_number", "1900999978"),
         ("school_email", "info@hcmus.edu.vn"),
@@ -451,6 +451,7 @@ const BUILD_DATE: &str = env!("DATE");
 const VERSION: &str = env!("VERSION");
 const GIT_HASH: &str = env!("GIT_HASH");
 const CONFIG_FILE: &str = "rule.json";
+const SCHOOL_NAME: &str = "UNIVERSITY OF SCIENCE - VNUHCM";
 fn main() {
     for arg in env::args() {
         if arg == "--version" {
@@ -465,6 +466,7 @@ fn main() {
     BusinessRule::import(CONFIG_FILE);
 
     loop {
+        println!("                {SCHOOL_NAME}");
         match read_enum_until_correct("Chọn hành động", &conn) {
             Operation::AddNewStudent(new_student) => {
                 if let Some(student) = search_student(&conn, &new_student.id) {
@@ -543,7 +545,16 @@ fn main() {
                     },
                     ConfigOption::StatusRule => {
                         todo!();
-                    }
+                    },
+                    ConfigOption::ToggleEmailRule(enable) => {
+                        BusinessRule::set_email_rule_enable(enable);
+                    },
+                    ConfigOption::TogglePhoneRule(enable) => {
+                        BusinessRule::set_phone_rule_enable(enable);
+                    },
+                    ConfigOption::ToggleStatusRule(enable) => {
+                        BusinessRule::set_status_rule_enable(enable);
+                    },
                 }
                 BusinessRule::export(CONFIG_FILE);
             },

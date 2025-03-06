@@ -12,6 +12,47 @@ pub enum ConfigOption {
     EmailDomain(String),
     PhonePattern(String),
     StatusRule,
+    ToggleEmailRule(bool),
+    TogglePhoneRule(bool),
+    ToggleStatusRule(bool),
+}
+
+impl SelectableEnum for ConfigOption {
+    fn print_choices(_conn: &Connection) -> usize {
+        static_assert!(ENUM_CONFIGOPTION_COUNT == 6, "Changed this");
+        const choices: &[&str] = &[
+            "Đổi tên miền email",
+            "Đổi định dạng số điện thoại",
+            "Đổi luật khi thay đổi tình trạng sinh viên",
+            "Bật/tắt tên miền email",
+            "Bật/tắt định dạng số điện thoại",
+            "Bật/tắt luật thay đổi tình trạng sinh viên",
+        ];
+        for i in 0..choices.len() {
+            println!("{}. {}", i+1, choices[i]);
+        }
+        choices.len()
+    }
+
+    fn parse_choice(choice: i32, _conn: &Connection) -> Option<Self> where Self: Sized {
+        static_assert!(ENUM_CONFIGOPTION_COUNT == 6, "Changed this");
+        let mut buffer = String::new();
+        match choice {
+            1 => Some({
+                read_string_until_correct("Nhập tên miền mới", &mut buffer, validate_email_domain);
+                ConfigOption::EmailDomain(buffer)
+            }),
+            2 => Some({
+                read_string_until_correct("Nhập định dạng mới cho số điện thoại (vd 0[3|5|7|8|9]xxxxxxxx)", &mut buffer, validate_phone_number_pattern);
+                ConfigOption::PhonePattern(buffer)
+            }),
+            3 => todo!(),
+            4 => Some(ConfigOption::ToggleEmailRule(read_boolean("Bật", "Tắt"))),
+            5 => Some(ConfigOption::TogglePhoneRule(read_boolean("Bật", "Tắt"))),
+            6 => Some(ConfigOption::ToggleStatusRule(read_boolean("Bật", "Tắt"))),
+            _ => None
+        }
+    }
 }
 
 pub fn validate_email_domain(domain: &str) -> Option<String> {
@@ -34,37 +75,22 @@ pub fn validate_phone_number_pattern(pattern: &str) -> Option<String> {
     }
 }
 
-impl SelectableEnum for ConfigOption {
-    fn print_choices(_conn: &Connection) -> usize {
-        static_assert!(ENUM_CONFIGOPTION_COUNT == 3, "Changed this");
-        println!("1. Đổi tên miền email");
-        println!("2. Đổi định dạng số điện thoại");
-        println!("3. Đổi luật khi thay đổi tình trạng sinh viên");
-        3
-    }
-
-    fn parse_choice(choice: i32, _conn: &Connection) -> Option<Self> where Self: Sized {
-        static_assert!(ENUM_CONFIGOPTION_COUNT == 3, "Changed this");
-        let mut buffer = String::new();
-        match choice {
-            1 => Some({
-                read_string_until_correct("Nhập tên miền mới", &mut buffer, validate_email_domain);
-                ConfigOption::EmailDomain(buffer)
-            }),
-            2 => Some({
-                read_string_until_correct("Nhập định dạng mới cho số điện thoại (vd 0[3|5|7|8|9]xxxxxxxx)", &mut buffer, validate_phone_number_pattern);
-                ConfigOption::PhonePattern(buffer)
-            }),
-            3 => todo!(),
-            _ => None
-        }
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Rule<T> {
+    rule: T,
+    disabled: bool,
+}
+impl<T> std::ops::Deref for Rule<T> {
+    type Target = T;
+    fn deref(&self) -> &<Self as std::ops::Deref>::Target {
+        &self.rule
     }
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct BusinessRule {
-    email_domain: Option<String>,
-    phone_pattern: Option<String>,
+    email_domain: Option<Rule<String>>,
+    phone_pattern: Option<Rule<String>>,
 }
 // NOTE: MUST NOT RUN MULTITHREADED
 static mut business_rule: BusinessRule = BusinessRule {
@@ -73,8 +99,8 @@ static mut business_rule: BusinessRule = BusinessRule {
 };
 impl BusinessRule {
     pub fn print(&self) {
-        println!("Tên miền email cho phép: {}", self.email_domain.as_deref().unwrap_or("None"));
-        println!("Định dạng số điện thoại: {}", self.email_domain.as_deref().unwrap_or("None"));
+        println!("Tên miền email cho phép: {}", self.email_domain.as_deref().map_or("None", |x| x));
+        println!("Định dạng số điện thoại: {}", self.email_domain.as_deref().map_or("None", |x| x));
     }
 
     pub fn import(path: &str) {
@@ -94,6 +120,9 @@ impl BusinessRule {
             let Some(phone_pattern) = &business_rule.phone_pattern else {
                 return None;
             };
+            if phone_pattern.disabled {
+                return None;
+            }
             phone_pattern
         };
         let mut regex = "^".to_string();
@@ -106,7 +135,7 @@ impl BusinessRule {
             } else if ch == 'x' {
                 regex.push_str(r"\d");
             } else {
-                panic!("Invalid phone number pattern '{phone_pattern}'");
+                panic!("Invalid phone number pattern '{}'", phone_pattern.rule);
             }
         }
         regex.push('$');
@@ -116,19 +145,48 @@ impl BusinessRule {
 
     pub fn email() -> Option<&'static String> {
         unsafe {
-            return business_rule.email_domain.as_ref();
+            if let Some(x) = &business_rule.email_domain {
+                if !x.disabled {
+                    return Some(&x.rule);
+                }
+            }
+            return None
         }
     }
 
     pub fn set_email(email: String) {
         unsafe {
-            business_rule.email_domain = Some(email);
+            if let Some(x) = &mut business_rule.email_domain {
+                x.rule = email;
+            }
         }
     }
 
     pub fn set_phone_number_pattern(pattern: String) {
         unsafe {
-            business_rule.phone_pattern = Some(pattern);
+            if let Some(x) = &mut business_rule.phone_pattern {
+                x.rule = pattern;
+            }
         }
+    }
+
+    pub fn set_email_rule_enable(enable: bool) {
+        unsafe {
+            if let Some(x) = &mut business_rule.email_domain {
+                x.disabled = !enable;
+            }
+        }
+    }
+
+    pub fn set_phone_rule_enable(enable: bool) {
+        unsafe {
+            if let Some(x) = &mut business_rule.phone_pattern {
+                x.disabled = !enable;
+            }
+        }
+    }
+
+    pub fn set_status_rule_enable(_enable: bool) {
+        todo!();
     }
 }
