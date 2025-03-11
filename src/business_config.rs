@@ -25,8 +25,8 @@ impl SelectableEnum for ConfigOption {
         const choices: &[&str] = &[
             "Đổi tên miền email",
             "Đổi định dạng số điện thoại",
-            "Đổi luật khi thay đổi tình trạng sinh viên",
             "Đổi khoảng thời gian cho phép xóa học sinh từ khi mới tạo",
+            "Đổi luật khi thay đổi tình trạng sinh viên",
             "Bật/tắt tên miền email",
             "Bật/tắt cấm xóa học sinh sau một thời gian",
             "Bật/tắt định dạng số điện thoại",
@@ -51,7 +51,7 @@ impl SelectableEnum for ConfigOption {
                 ConfigOption::PhonePattern(buffer)
             }),
             3 => Some(
-                ConfigOption::StudentDeletionTime(read_number_until_correct("Nhập thời gian (phút) cho phép xóa học sinh (> 30)", 30, std::i64::MAX))
+                ConfigOption::StudentDeletionTime(read_number_until_correct("Nhập thời gian (phút) cho phép xóa học sinh (>= 30)", 30, std::i64::MAX))
             ),
             4 => todo!(),
             5 => Some(ConfigOption::ToggleEmailRule(read_boolean("Bật", "Tắt"))),

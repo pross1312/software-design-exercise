@@ -450,7 +450,9 @@ fn main() {
     }
     let conn = Connection::open(DB_PATH).unwrap();
     conn.execute_batch(&fs::read_to_string(MIGRATION_SCRIPT).unwrap()).unwrap();
-    BusinessRule::import(CONFIG_FILE);
+    if Path::new(CONFIG_FILE).exists() {
+        BusinessRule::import(CONFIG_FILE);
+    }
 
     loop {
         println!("                {SCHOOL_NAME}");
@@ -484,8 +486,8 @@ fn main() {
             },
             Operation::DeleteStudent(id) => {
                 let deletion_time = BusinessRule::student_deletion_time().unwrap_or(0);
-                if Student::can_delete(&conn, &id, deletion_time) {
-                    println!("Không thể xóa sinh viên {} sau khi tạo", deletion_time);
+                if Student::can_delete(&conn, &id, deletion_time * 60) {
+                    println!("Không thể xóa sinh viên {} phút sau khi tạo", deletion_time);
                 } else if Student::delete(&conn, &id) {
                     println!("Xóa thành công sinh viên với mã số {}", id);
                 } else {
@@ -551,7 +553,7 @@ fn main() {
                     ConfigOption::ToggleStudentDeletionRule(enable) => {
                         BusinessRule::set_student_deletion_time_enable(enable)
                     },
-                }
+                };
                 BusinessRule::export(CONFIG_FILE);
             },
             Operation::Quit => break,

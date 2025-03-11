@@ -143,8 +143,8 @@ impl Student {
         }
     }
 
-    pub fn can_delete(conn: &Connection, id: &str, student_deletion_deadline: i64) -> bool {
-        if student_deletion_deadline <= 0 {
+    pub fn can_delete(conn: &Connection, id: &str, student_deletion_deadline_in_seconds: i64) -> bool {
+        if student_deletion_deadline_in_seconds <= 0 {
             return true;
         }
         if let Ok(created_time) = conn.query_row(
@@ -152,7 +152,7 @@ impl Student {
             [id],
             |row| { Ok(row.get::<usize, i64>(0)?) }
         ) {
-            (created_time + student_deletion_deadline) as u64 >= SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs()
+            (created_time + student_deletion_deadline_in_seconds) as u64 >= SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs()
         } else {
             false
         }
