@@ -2,6 +2,7 @@ use super::*;
 use crate::io::SelectableEnum;
 use rusqlite::{Connection, Row};
 use std::io::Write;
+use std::time::{SystemTime, UNIX_EPOCH};
 use crate::log;
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -128,6 +129,33 @@ impl Student {
             enrolled_year: row.get(9)?,
             program: Program::parse_choice(row.get(10)?, conn).unwrap(),
         })
+    }
+
+    pub fn search_student(conn: &Connection, id_or_name: &str) -> Option<Student> {
+        log!("Search for student with id or name {}", id_or_name);
+        if let Ok(student) = conn.query_row(
+            "SELECT id, name, dob, phone, address, email, status, gender, faculty, enrolled_year, program FROM Student WHERE LOWER(id) = LOWER(?) OR LOWER(name) LIKE LOWER(?)",
+            [id_or_name, id_or_name],
+            |row| Student::map_row(conn, row)) {
+            Some(student)
+        } else {
+            None
+        }
+    }
+
+    pub fn can_delete(conn: &Connection, id: &str, student_deletion_deadline: i64) -> bool {
+        if student_deletion_deadline <= 0 {
+            return true;
+        }
+        if let Ok(created_time) = conn.query_row(
+            "SELECT created_time FROM Student WHERE LOWER(id) = LOWER(?)",
+            [id],
+            |row| { Ok(row.get::<usize, i64>(0)?) }
+        ) {
+            (created_time + student_deletion_deadline) as u64 >= SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs()
+        } else {
+            false
+        }
     }
 }
 

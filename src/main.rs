@@ -41,7 +41,7 @@ use std::path::Path;
 use regex::Regex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use chrono::TimeZone;
-use enum_count::EnumCount;
+use enum_count::*;
 
 use io::*;
 use data::*;
@@ -243,7 +243,7 @@ impl Operation {
 
 impl SelectableEnum for Operation {
     fn print_choices(_conn: &Connection) -> usize {
-        static_assert!(ENUM_OPERATION_COUNT == 17, "Number of operations changed");
+        static_assert!(enum_count_of!(Operation) == 17, "Number of operations changed");
         let ops = [
             "Thêm sinh viên mới",
             "Xóa sinh viên",
@@ -269,7 +269,7 @@ impl SelectableEnum for Operation {
         ops.len()
     }
     fn parse_choice(choice: i32, conn: &Connection) -> Option<Self> where Self: Sized {
-        static_assert!(ENUM_OPERATION_COUNT == 17, "Number of operations changed");
+        static_assert!(enum_count_of!(Operation) == 17, "Number of operations changed");
         match choice {
             1 => Some(Operation::new_operation_add(conn)),
             2 => Some(Operation::DeleteStudent(read_string_new("Nhập Mã số sinh viên cần xóa"))),
@@ -323,19 +323,6 @@ fn update_student_fields(student: &mut Student, conn: &Connection) {
         }
     }
 }
-
-fn search_student(conn: &Connection, id_or_name: &str) -> Option<Student> {
-    log!("Search for student with id or name {}", id_or_name);
-    if let Ok(student) = conn.query_row(
-        "SELECT id, name, dob, phone, address, email, status, gender, faculty, enrolled_year, program FROM Student WHERE LOWER(id) = LOWER(?) OR LOWER(name) LIKE LOWER(?)",
-        [id_or_name, id_or_name],
-        |row| Student::map_row(conn, row)) {
-        Some(student)
-    } else {
-        None
-    }
-}
-
 
 fn search_by_faculty(conn: &Connection, Faculty{id, name}: &Faculty, student_name: Option<&str>) {
     let (mut stmt, args) = if None == student_name {
@@ -469,14 +456,14 @@ fn main() {
         println!("                {SCHOOL_NAME}");
         match read_enum_until_correct("Chọn hành động", &conn) {
             Operation::AddNewStudent(new_student) => {
-                if let Some(student) = search_student(&conn, &new_student.id) {
+                if let Some(student) = Student::search_student(&conn, &new_student.id) {
                     println!("Học sinh với mã số {} đã tồn tại, không thể thêm học sinh mới vào", student.id);
                 } else {
                     Student::add(&conn, &new_student);
                 }
             },
             Operation::UpdateStudent(id) => {
-                if let Some(mut student) = search_student(&conn, &id) {
+                if let Some(mut student) = Student::search_student(&conn, &id) {
                     println!("Cập nhập thông tin mới cho sinh viên");
                     update_student_fields(&mut student, &conn);
                     println!("Thông tin của sinh viên sau khi sửa");
@@ -487,7 +474,7 @@ fn main() {
                 }
             },
             Operation::SearchStudent(search) => {
-                if let Some(student) = search_student(&conn, &search) {
+                if let Some(student) = Student::search_student(&conn, &search) {
                     println!("Sinh viên cần tìm là");
                     student.print();
                     println!();
@@ -496,7 +483,10 @@ fn main() {
                 }
             },
             Operation::DeleteStudent(id) => {
-                if Student::delete(&conn, &id) {
+                let deletion_time = BusinessRule::student_deletion_time().unwrap_or(0);
+                if Student::can_delete(&conn, &id, deletion_time) {
+                    println!("Không thể xóa sinh viên {} sau khi tạo", deletion_time);
+                } else if Student::delete(&conn, &id) {
                     println!("Xóa thành công sinh viên với mã số {}", id);
                 } else {
                     println!("Không thể tìm thấy sinh viên với mã số {}", id);
@@ -543,6 +533,9 @@ fn main() {
                     ConfigOption::PhonePattern(phone_pattern) => {
                         BusinessRule::set_phone_number_pattern(phone_pattern);
                     },
+                    ConfigOption::StudentDeletionTime(time) => {
+                        BusinessRule::set_student_deletion_time(time);
+                    },
                     ConfigOption::StatusRule => {
                         todo!();
                     },
@@ -554,6 +547,9 @@ fn main() {
                     },
                     ConfigOption::ToggleStatusRule(enable) => {
                         BusinessRule::set_status_rule_enable(enable);
+                    },
+                    ConfigOption::ToggleStudentDeletionRule(enable) => {
+                        BusinessRule::set_student_deletion_time_enable(enable)
                     },
                 }
                 BusinessRule::export(CONFIG_FILE);

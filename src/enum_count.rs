@@ -26,9 +26,21 @@ pub fn enum_count(item: TokenStream) -> TokenStream {
                         count += 1;
                     }
                 }
-                return format!("pub const ENUM_{}_COUNT: usize = {};", name.to_string().to_uppercase(), count).parse().unwrap();
+                return format!("pub const ENUM_{}_COUNT: usize = {};", name.to_string(), count).parse().unwrap();
             }
         }
     }
     panic!("???");
+}
+
+#[proc_macro]
+pub fn enum_count_of(item: TokenStream) -> TokenStream {
+    let mut iter = item.into_iter();
+    let enum_name  = iter.next().unwrap();
+    if let Some(_) = iter.next() {
+        assert!(false, "Expected only enum name");
+    }
+    let result = format!("ENUM_{}_COUNT", enum_name.to_string());
+    // println!("{result}");
+    result.parse().unwrap()
 }

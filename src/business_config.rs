@@ -1,6 +1,6 @@
 #![allow(static_mut_refs)]
 use enum_count::EnumCount;
-use crate::static_assert;
+use crate::{static_assert, enum_count_of};
 use rusqlite::{Connection};
 use crate::io::*;
 use regex::Regex;
@@ -11,20 +11,24 @@ use std::io::{BufReader, BufWriter};
 pub enum ConfigOption {
     EmailDomain(String),
     PhonePattern(String),
+    StudentDeletionTime(i64),
     StatusRule,
     ToggleEmailRule(bool),
     TogglePhoneRule(bool),
     ToggleStatusRule(bool),
+    ToggleStudentDeletionRule(bool),
 }
 
 impl SelectableEnum for ConfigOption {
     fn print_choices(_conn: &Connection) -> usize {
-        static_assert!(ENUM_CONFIGOPTION_COUNT == 6, "Changed this");
+        static_assert!(enum_count_of!(ConfigOption) == 8, "Changed this");
         const choices: &[&str] = &[
             "Đổi tên miền email",
             "Đổi định dạng số điện thoại",
             "Đổi luật khi thay đổi tình trạng sinh viên",
+            "Đổi khoảng thời gian cho phép xóa học sinh từ khi mới tạo",
             "Bật/tắt tên miền email",
+            "Bật/tắt cấm xóa học sinh sau một thời gian",
             "Bật/tắt định dạng số điện thoại",
             "Bật/tắt luật thay đổi tình trạng sinh viên",
         ];
@@ -35,7 +39,7 @@ impl SelectableEnum for ConfigOption {
     }
 
     fn parse_choice(choice: i32, _conn: &Connection) -> Option<Self> where Self: Sized {
-        static_assert!(ENUM_CONFIGOPTION_COUNT == 6, "Changed this");
+        static_assert!(enum_count_of!(ConfigOption) == 8);
         let mut buffer = String::new();
         match choice {
             1 => Some({
@@ -46,10 +50,14 @@ impl SelectableEnum for ConfigOption {
                 read_string_until_correct("Nhập định dạng mới cho số điện thoại (vd 0[3|5|7|8|9]xxxxxxxx)", &mut buffer, validate_phone_number_pattern);
                 ConfigOption::PhonePattern(buffer)
             }),
-            3 => todo!(),
-            4 => Some(ConfigOption::ToggleEmailRule(read_boolean("Bật", "Tắt"))),
-            5 => Some(ConfigOption::TogglePhoneRule(read_boolean("Bật", "Tắt"))),
-            6 => Some(ConfigOption::ToggleStatusRule(read_boolean("Bật", "Tắt"))),
+            3 => Some(
+                ConfigOption::StudentDeletionTime(read_number_until_correct("Nhập thời gian (phút) cho phép xóa học sinh (> 30)", 30, std::i64::MAX))
+            ),
+            4 => todo!(),
+            5 => Some(ConfigOption::ToggleEmailRule(read_boolean("Bật", "Tắt"))),
+            6 => Some(ConfigOption::TogglePhoneRule(read_boolean("Bật", "Tắt"))),
+            7 => Some(ConfigOption::ToggleStatusRule(read_boolean("Bật", "Tắt"))),
+            8 => Some(ConfigOption::ToggleStudentDeletionRule(read_boolean("Bật", "Tắt"))),
             _ => None
         }
     }
@@ -75,7 +83,7 @@ pub fn validate_phone_number_pattern(pattern: &str) -> Option<String> {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 struct Rule<T> {
     rule: T,
     disabled: bool,
@@ -91,14 +99,16 @@ impl<T> std::ops::Deref for Rule<T> {
 pub struct BusinessRule {
     email_domain: Option<Rule<String>>,
     phone_pattern: Option<Rule<String>>,
+    student_deletion_time: Option<Rule<i64>>,
 }
 // NOTE: MUST NOT RUN MULTITHREADED
 static mut business_rule: BusinessRule = BusinessRule {
     email_domain: None,
     phone_pattern: None,
+    student_deletion_time: None,
 };
 impl BusinessRule {
-    pub fn print(&self) {
+    pub fn print(&mut self) {
         println!("Tên miền email cho phép: {}", self.email_domain.as_deref().map_or("None", |x| x));
         println!("Định dạng số điện thoại: {}", self.email_domain.as_deref().map_or("None", |x| x));
     }
@@ -141,6 +151,17 @@ impl BusinessRule {
         regex.push('$');
         // println!("{regex}");
         Some(regex)
+    }
+
+    pub fn student_deletion_time() -> Option<i64> {
+        unsafe {
+            if let Some(x) = &business_rule.student_deletion_time {
+                if !x.disabled {
+                    return Some(x.rule);
+                }
+            }
+            return None
+        }
     }
 
     pub fn email() -> Option<&'static String> {
@@ -188,5 +209,21 @@ impl BusinessRule {
 
     pub fn set_status_rule_enable(_enable: bool) {
         todo!();
+    }
+
+    pub fn set_student_deletion_time(time: i64) {
+        unsafe {
+            if let Some(x) = &mut business_rule.student_deletion_time {
+                x.rule = time;
+            }
+        }
+    }
+
+    pub fn set_student_deletion_time_enable(enable: bool) {
+        unsafe {
+            if let Some(x) = &mut business_rule.student_deletion_time {
+                x.disabled = !enable;
+            }
+        }
     }
 }

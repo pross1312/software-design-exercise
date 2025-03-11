@@ -77,11 +77,12 @@ pub fn read_enum_until_correct<T: SelectableEnum>(prompt: &str, conn: &Connectio
     }
 }
 
-pub fn read_number_until_correct(prompt: &str, start: i32, end: i32) -> i32 {
+pub fn read_number_until_correct<T>(prompt: &str, start: T, end: T) -> T
+            where T: std::str::FromStr + std::cmp::PartialOrd + std::fmt::Display {
     let mut input = String::new();
     loop {
         match read_string(prompt, &mut input) {
-            Ok(_) => match input.parse::<i32>() {
+            Ok(_) => match input.parse::<T>() {
                 Ok(number) => {
                     if number >= start && number <= end { return number; }
                     else { println!("Số {} không hợp lệ, vui lòng chọn lại", number); }
